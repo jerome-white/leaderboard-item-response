@@ -8,7 +8,12 @@ from tempfile import TemporaryDirectory
 from dataclasses import dataclass, asdict
 from multiprocessing import Pool, Queue
 
-from datasets import load_dataset, get_dataset_config_names
+from datasets import (
+    DownloadConfig,
+    load_dataset,
+    disable_progress_bars,
+    get_dataset_config_names,
+)
 from huggingface_hub import DatasetFilter, list_datasets
 
 from logutils import Logger
@@ -126,14 +131,43 @@ def func(incoming, outgoing):
         if task in _extractors:
             extractor = _extractors[task]
             with TemporaryDirectory() as cache_dir:
-                data = load_dataset(str(info.path),
-                                    info.name,
-                                    cache_dir=cache_dir)
+                data = load_dataset(
+                    str(info.path),
+                    info.name,
+                    cache_dir=cache_dir,
+                )
                 results.extend(dict(body, correct=x) for x in extractor(data))
         else:
             Logger.error(f'Unrecognized task: {task} ({details.task})')
 
         outgoing.put(results)
+
+def ls(author):
+    filter_ = DatasetFilter(author=author)
+    for i in list_datasets(filter=filter_):
+        dataset = Path(i.id)
+        if dataset.name.startswith('details_'):
+            yield dataset
+
+def pull(datasets):
+    with TemporaryDirectory() as cache_dir:
+        download_config = DownloadConfig(
+            cache_dir=cache_dir,
+            delete_extracted=True,
+        )
+
+        for d in datasets:
+            try:
+                configs = get_dataset_config_names(
+                    str(d),
+                    download_config=download_config,
+                )
+            except ValueError as err:
+                Logger.warning(f'{d} Cannot get config names')
+                continue
+
+            for c in configs:
+                yield DataSetInfo(d, c)
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
@@ -150,16 +184,9 @@ if __name__ == '__main__':
 
     with Pool(args.workers, func, initargs):
         jobs = 0
-        _filter = DatasetFilter(author=args.author)
-
-        for i in list_datasets(filter=_filter):
-            path = Path(i.id)
-            if path.name.startswith('details_'):
-                Logger.warning(path)
-                for j in get_dataset_config_names(i.id):
-                    dsi = DataSetInfo(path, j)
-                    outgoing.put(dsi)
-                    jobs += 1
+        for i in pull(ls(args.author)):
+            outgoing.put(i)
+            jobs += 1
 
         writer = None
         for _ in range(jobs):
