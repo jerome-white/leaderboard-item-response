@@ -1,7 +1,6 @@
 import sys
-import operator as op
+import csv
 import itertools as it
-import collections as cl
 from pathlib import Path
 from datetime import datetime
 from argparse import ArgumentParser
