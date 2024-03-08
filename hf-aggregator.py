@@ -143,7 +143,7 @@ def func(incoming, outgoing):
                 )
                 results.extend(dict(body, correct=x) for x in extractor(data))
         else:
-            Logger.error(f'Unrecognized task: {task} ({details.task})')
+            Logger.error(f'Unrecognized task: "{task}" ({details.task})')
 
         outgoing.put(results)
 
