@@ -126,10 +126,10 @@ def func(incoming, outgoing):
         (task, *_) = details.task.split('_')
         if task in _extractors:
             extractor = _extractors[task]
-            with TemporaryDirectory() as fp:
+            with TemporaryDirectory() as cache_dir:
                 data = load_dataset(str(info.path),
                                     info.name,
-                                    cache_dir=fp.name)
+                                    cache_dir=cache_dir)
                 results.extend(dict(body, correct=x) for x in extractor(data))
         else:
             Logger.error(f'Unrecognized task: {task} ({details.task})')
@@ -156,6 +156,7 @@ if __name__ == '__main__':
         for i in list_datasets(filter=_filter):
             path = Path(i.id)
             if path.name.startswith('details_'):
+                Logger.warning(path)
                 for j in get_dataset_config_names(i.id):
                     dsi = DataSetInfo(path, j)
                     outgoing.put(dsi)
