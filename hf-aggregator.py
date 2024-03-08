@@ -200,4 +200,4 @@ if __name__ == '__main__':
                 if writer is None:
                     writer = csv.DictWriter(sys.stdout, fieldnames=rows[0])
                     writer.writeheader()
-                writer.writerow(rows)
+                writer.writerows(rows)
