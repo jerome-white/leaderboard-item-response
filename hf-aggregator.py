@@ -113,6 +113,8 @@ class Winogrande(MetricExtractor):
 #
 #
 def func(incoming, outgoing):
+    disable_progress_bars()
+
     _extractors = {
         'arc': ARC(),
         'hellaswag': HellaSwag(),
