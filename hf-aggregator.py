@@ -37,6 +37,9 @@ class DataSetInfo:
     path: Path
     name: str
 
+    def __str__(self):
+        return f'{self.path} {self.name}'
+
     def describe(self):
         for (i, word) in enumerate(self.path.name.split('__')):
             if not i:
