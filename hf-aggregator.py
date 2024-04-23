@@ -128,7 +128,7 @@ def func(incoming, outgoing):
     _extractors = {
         'arc': ARC(),
         'hellaswag': HellaSwag(),
-        'hendrycksTest': MMLU(),
+        'hendryckstest': MMLU(),
         'truthfulqa': TruthfulQA(),
         'winogrande': Winogrande(),
         'gsm8k': GSM8K(),
@@ -175,8 +175,12 @@ def pull(datasets):
                     str(d),
                     download_config=download_config,
                 )
-            except ValueError as err:
-                Logger.warning(f'{d} Cannot get config names')
+            except (ValueError, ConnectionError) as err:
+                Logger.warning('{} Cannot get config names: {} ({})'.format(
+                    d,
+                    err,
+                    type(err).__name__,
+                ))
                 continue
 
             for c in configs:
