@@ -1,6 +1,5 @@
 import sys
 import csv
-import itertools as it
 from pathlib import Path
 from datetime import datetime
 from argparse import ArgumentParser
@@ -32,158 +31,126 @@ class DataSetKey:
         return self.value < other.value
 
 @dataclass
-class DataSetInfo:
+class LeaderboardDataset:
     path: Path
-    name: str
-
-    def __str__(self):
-        return f'{self.path} {self.name}'
-
-    def describe(self):
-        for (i, word) in enumerate(self.path.name.split('__')):
-            if not i:
-                (_, word) = word.split('_')
-            yield word
-
-    def names(self, sep='_'):
-        lhs = self.name.find(sep) + 1
-        rhs = self.name.rfind(sep)
-        view = self.name[lhs:rhs].casefold()
-        iterable = (
-            view.split(sep, maxsplit=1),
-            it.repeat('', times=2),
-        )
-
-        for (i, j) in it.zip_longest(*iterable):
-            yield i or j
-
-@dataclass
-class DataSetDetails:
     author: str
     model: str
-    task: str
-    subtask: str
 
-    def __init__(self, info):
-        (self.author, self.model) = info.describe()
-        (self.task, self.subtask) = info.names()
+    def __str__(self):
+        return str(self.path)
 
-#
-#
-#
-class MetricExtractor:
-    @staticmethod
-    def items(keys):
-        for i in keys:
-            try:
-                value = datetime.strptime(i, '%Y_%m_%dT%H_%M_%S.%f')
-            except ValueError:
-                continue
-            yield DataSetKey(i, value)
+    @classmethod
+    def from_path(cls, path):
+        (lhs, rhs) = map(path.name.find, ('_', '__'))
+        (_lhs, _rhs) = (lhs, rhs)
 
-    def __call__(self, data):
-        key = min(self.items(data.keys()))
-        yield from map(float, self.get(data[str(key)]))
+        if lhs < 0:
+            raise ValueError(f'Cannot parse name {path}')
 
-    def get(self, data):
-        raise NotImplementedError()
-
-class SimpleExtractor(MetricExtractor):
-    def __init__(self, key):
-        super().__init__()
-        self.key = key
-
-    def get(self, data):
-        yield from data[self.key]
-
-class ARC(SimpleExtractor):
-    def __init__(self):
-        super().__init__('acc_norm')
-
-class HellaSwag(SimpleExtractor):
-    def __init__(self):
-        super().__init__('acc_norm')
-
-class TruthfulQA(SimpleExtractor):
-    def __init__(self):
-        super().__init__('mc2')
-
-class MMLU(SimpleExtractor):
-    def __init__(self):
-        super().__init__('acc')
-
-class GSM8K(SimpleExtractor):
-    def __init__(self):
-        super().__init__('acc')
-
-class Winogrande(MetricExtractor):
-    def get(self, data):
-        metrics = data['metrics']
-        yield from it.chain.from_iterable(x.values() for x in metrics)
-
-#
-#
-#
-def func(incoming, outgoing):
-    _extractors = {
-        'arc': ARC(),
-        'hellaswag': HellaSwag(),
-        'hendryckstest': MMLU(),
-        'truthfulqa': TruthfulQA(),
-        'winogrande': Winogrande(),
-        'gsm8k': GSM8K(),
-    }
-
-    while True:
-        info = incoming.get()
-        Logger.info(info)
-
-        details = DataSetDetails(info)
-        body = asdict(details)
-
-        results = []
-        if details.task in _extractors:
-            extractor = _extractors[details.task]
-            with TemporaryDirectory() as cache_dir:
-                data = load_dataset(
-                    str(info.path),
-                    info.name,
-                    cache_dir=cache_dir,
-                )
-                results.extend(dict(body, correct=x) for x in extractor(data))
+        if lhs == rhs:
+            rhs += 2
+        elif rhs < 0:
+            lhs += 1
         else:
-            Logger.error(f'Unrecognized task: "{details.task}"')
+            lhs += 1
+            rhs += 2
+
+        if lhs == _lhs:
+            author = None
+        elif rhs < 0:
+            author = path.name[lhs:]
+        else:
+            author = path.name[lhs:rhs]
+        model = None if rhs == _rhs else path.name[rhs:]
+
+        return cls(path, author, model)
+
+@dataclass
+class LeaderboardResult(LeaderboardDataset):
+    evaluation: str
+    prompt: str
+    metric: str
+    value: float
+
+#
+#
+#
+def pull(data):
+    latest = None
+    for i in data.keys():
+        try:
+            value = datetime.strptime(i, '%Y_%m_%dT%H_%M_%S.%f')
+        except ValueError:
+            continue
+        key = DataSetKey(i, value)
+        if latest is None or latest > key:
+            latest = key
+
+    if latest is None:
+        Logger.warning(f'{data}: keys not timestamped')
+        latest = 'latest'
+
+    yield from data.get(str(latest))
+
+def extract(ld_set, name):
+    kwargs = asdict(ld_set)
+    metrics = (
+        'f1',
+        'mc2',
+        'acc',
+        'acc_norm',
+    )
+
+    with TemporaryDirectory() as cache_dir:
+        data = load_dataset(str(ld_set), name, cache_dir=cache_dir)
+        for row in pull(data):
+            prompt = row['full_prompt']
+            for metric in metrics:
+                value = row.get(metric)
+                if value is not None:
+                    yield LeaderboardResult(
+                        evaluation=name,
+                        prompt=prompt,
+                        metric=metric,
+                        value=value,
+                        **kwargs,
+                    )
+
+def evaluations(ld_set):
+    with TemporaryDirectory() as cache_dir:
+        dc = DownloadConfig(cache_dir=cache_dir, delete_extracted=True)
+        try:
+            names = get_dataset_config_names(str(ld_set), download_config=dc)
+        except (ValueError, ConnectionError) as err:
+            name = type(err).__name__
+            msg = f'[{ld_set}] Cannot get config names: {err} ({name})'
+            raise ValueError(msg) from err
+
+        for n in names:
+            if n.startswith('harness_'):
+                yield from extract(ld_set, n)
+
+def func(incoming, outgoing):
+    while True:
+        ld_set = incoming.get()
+        Logger.info(ld_set)
+
+        try:
+            results = list(map(asdict, evaluations(ld_set)))
+        except ValueError as err:
+            results = []
+            Logger.error(err)
 
         outgoing.put(results)
 
 def ls(author):
     api = HfApi()
-    for i in api.list_datasets(author=author, search='details_'):
-        yield Path(i.id)
+    search = 'details_'
 
-def pull(datasets):
-    with TemporaryDirectory() as cache_dir:
-        download_config = DownloadConfig(
-            cache_dir=cache_dir,
-            delete_extracted=True,
-        )
-
-        for d in datasets:
-            try:
-                configs = get_dataset_config_names(
-                    str(d),
-                    download_config=download_config,
-                )
-            except (ValueError, ConnectionError) as err:
-                Logger.warning('{} Cannot get config names: {} ({})'.format(
-                    d,
-                    err,
-                    type(err).__name__,
-                ))
-                continue
-
-            for c in configs:
-                yield DataSetInfo(d, c)
+    for i in api.list_datasets(author=author, search=search):
+        path = Path(i.id)
+        assert path.name.startswith(search)
+        yield LeaderboardDataset.from_path(path)
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
@@ -200,7 +167,7 @@ if __name__ == '__main__':
 
     with Pool(args.workers, func, initargs):
         jobs = 0
-        for i in pull(ls(args.author)):
+        for i in ls(args.author):
             outgoing.put(i)
             jobs += 1
 
