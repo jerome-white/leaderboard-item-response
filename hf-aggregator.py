@@ -45,15 +45,28 @@ class DataSetInfo:
                 (_, word) = word.split('_')
             yield word
 
+    def names(self, sep='_'):
+        lhs = self.name.find(sep) + 1
+        rhs = self.name.rfind(sep)
+        view = self.name[lhs:rhs].casefold()
+        iterable = (
+            view.split(sep, maxsplit=1),
+            it.repeat('', times=2),
+        )
+
+        for (i, j) in it.zip_longest(*iterable):
+            yield i or j
+
 @dataclass
 class DataSetDetails:
     author: str
     model: str
     task: str
+    subtask: str
 
     def __init__(self, info):
         (self.author, self.model) = info.describe()
-        (_, self.task) = info.name.split('_', maxsplit=1)
+        (self.task, self.subtask) = info.names()
 
 #
 #
