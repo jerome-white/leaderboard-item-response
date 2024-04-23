@@ -124,7 +124,7 @@ def extract(ld_set, evaluation):
 
 def evaluations(ld_set):
     with TemporaryDirectory() as cache_dir:
-        dc = DownloadConfig(cache_dir=cache_dir, delete_extracted=True)
+        dc = DownloadConfig(cache_dir=cache_dir)
         try:
             names = get_dataset_config_names(str(ld_set), download_config=dc)
         except (ValueError, ConnectionError) as err:
@@ -132,9 +132,9 @@ def evaluations(ld_set):
             msg = f'[{ld_set}] Cannot get config names: {err} ({name})'
             raise ValueError(msg) from err
 
-        for n in names:
-            if n.startswith('harness_'):
-                yield from extract(ld_set, n)
+    for n in names:
+        if n.startswith('harness_'):
+            yield from extract(ld_set, n)
 
 def func(incoming, outgoing, chunk_size):
     while True:
