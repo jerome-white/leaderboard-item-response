@@ -89,8 +89,10 @@ def pull(data):
     if latest is None:
         Logger.warning(f'{data}: keys not timestamped')
         latest = 'latest'
+    else:
+        latest = str(latest)
 
-    yield from data.get(str(latest))
+    yield from data.get(latest)
 
 def extract(ld_set, name):
     kwargs = asdict(ld_set)
