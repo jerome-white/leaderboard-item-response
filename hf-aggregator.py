@@ -60,7 +60,7 @@ class LeaderboardDataset:
         elif rhs < 0:
             author = path.name[lhs:]
         else:
-            author = path.name[lhs:rhs]
+            author = path.name[lhs:_rhs]
         model = None if rhs == _rhs else path.name[rhs:]
 
         return cls(path, author, model)
