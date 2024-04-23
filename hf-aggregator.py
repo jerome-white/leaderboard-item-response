@@ -98,6 +98,8 @@ def pull(data):
 
 def extract(ld_set, name):
     kwargs = asdict(ld_set)
+    kwargs.pop('path')
+    suffix = f'.{ld_set.path.name}'
     metrics = (
         'f1',
         'mc2',
@@ -105,7 +107,7 @@ def extract(ld_set, name):
         'acc_norm',
     )
 
-    with TemporaryDirectory() as cache_dir:
+    with TemporaryDirectory(prefix='hf_ds', suffix=suffix) as cache_dir:
         data = load_dataset(str(ld_set), name, cache_dir=cache_dir)
         for row in pull(data):
             prompt = row['full_prompt']
