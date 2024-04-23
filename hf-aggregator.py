@@ -142,9 +142,8 @@ def func(incoming, outgoing):
         body = asdict(details)
 
         results = []
-        (task, *_) = details.task.split('_')
-        if task in _extractors:
-            extractor = _extractors[task]
+        if details.task in _extractors:
+            extractor = _extractors[details.task]
             with TemporaryDirectory() as cache_dir:
                 data = load_dataset(
                     str(info.path),
