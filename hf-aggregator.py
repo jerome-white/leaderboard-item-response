@@ -83,7 +83,7 @@ class MetricExtractor:
 
     def __call__(self, data):
         key = min(self.items(data.keys()))
-        yield from self.get(data[str(key)])
+        yield from map(float, self.get(data[str(key)]))
 
     def get(self, data):
         raise NotImplementedError()
