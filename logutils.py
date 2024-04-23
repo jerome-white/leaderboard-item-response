@@ -13,9 +13,3 @@ logging.basicConfig(
 )
 logging.captureWarnings(True)
 Logger = logging.getLogger(__name__)
-
-#
-#
-#
-dl.disable_progress_bar()
-dl.set_verbosity(dl.CRITICAL)

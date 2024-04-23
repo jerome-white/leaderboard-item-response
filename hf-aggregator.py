@@ -30,6 +30,9 @@ class DataSetKey:
     def __lt__(self, other):
         return self.value < other.value
 
+    def to_datetime(self):
+        return self.value
+
 @dataclass
 class LeaderboardDataset:
     path: Path
@@ -67,6 +70,7 @@ class LeaderboardDataset:
 
 @dataclass
 class LeaderboardResult:
+    date: datetime
     author: str
     model: str
     evaluation: str
@@ -78,29 +82,15 @@ class LeaderboardResult:
 #
 #
 def latest(data):
-    key = None
     for i in data.keys():
         try:
             value = datetime.strptime(i, '%Y_%m_%dT%H_%M_%S.%f')
         except ValueError:
             continue
-        key_ = DataSetKey(i, value)
-        if key is None or key > key_:
-            key = key_
 
-    if key is None:
-        key = 'latest'
-        Logger.warning('Keys not timestamped: {}. Using "{}"'.format(
-            ', '.join(data.keys()),
-            key,
-        ))
-        assert key in data, data.keys()
-    else:
-        key = str(key)
+        yield DataSetKey(i, value)
 
-    return data[key]
-
-def extract(ld_set, evaluation):
+def extract(ld_set, evaluation, date, data):
     kwargs = asdict(ld_set)
     kwargs.pop('path')
 
@@ -112,22 +102,31 @@ def extract(ld_set, evaluation):
         'acc_norm',
     )
 
-    with TemporaryDirectory(suffix=f'.{ld_set.path.name}') as cache_dir:
-        path = str(ld_set)
-        data = latest(load_dataset(path, evaluation, cache_dir=cache_dir))
-
     for row in data:
         prompt = row['hashes']['full_prompt']
         for metric in metrics:
             if metric in row:
                 value = float(row[metric])
                 yield LeaderboardResult(
+                    date=date,
                     evaluation=evaluation,
                     prompt=prompt,
                     metric=metric,
                     value=value,
                     **kwargs,
                 )
+
+def browse(ld_set, evaluation):
+    suffix = f'.{ld_set.path.name}'
+    with TemporaryDirectory(suffix=suffix) as cache_dir:
+        path = str(ld_set)
+        data = load_dataset(path, evaluation, cache_dir=cache_dir)
+
+    key = min(latest(data))
+    date = key.to_datetime()
+    data = data.get(str(key))
+
+    yield from extract(ld_set, evaluation, date, data)
 
 def evaluations(ld_set):
     with TemporaryDirectory() as cache_dir:
@@ -141,8 +140,11 @@ def evaluations(ld_set):
 
     for n in names:
         if n.startswith('harness_'):
-            yield from extract(ld_set, n)
+            yield from browse(ld_set, n)
 
+#
+#
+#
 def func(incoming, outgoing, chunk_size):
     while True:
         ld_set = incoming.get()
