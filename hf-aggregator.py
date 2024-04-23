@@ -66,7 +66,9 @@ class LeaderboardDataset:
         return cls(path, author, model)
 
 @dataclass
-class LeaderboardResult(LeaderboardDataset):
+class LeaderboardResult:
+    author: str
+    model: str
     evaluation: str
     prompt: str
     metric: str
