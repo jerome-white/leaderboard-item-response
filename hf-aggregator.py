@@ -9,12 +9,11 @@ from dataclasses import dataclass, asdict
 from multiprocessing import Pool, Queue
 
 from datasets import (
-    DownloadConfig,
     load_dataset,
-    disable_progress_bars,
+    DownloadConfig,
     get_dataset_config_names,
 )
-from huggingface_hub import DatasetFilter, list_datasets
+from huggingface_hub import HfApi
 
 from logutils import Logger
 
@@ -143,16 +142,14 @@ def func(incoming, outgoing):
                 )
                 results.extend(dict(body, correct=x) for x in extractor(data))
         else:
-            Logger.error(f'Unrecognized task: "{task}" ({details.task})')
+            Logger.error(f'Unrecognized task: "{details.task}"')
 
         outgoing.put(results)
 
 def ls(author):
-    filter_ = DatasetFilter(author=author)
-    for i in list_datasets(filter=filter_):
-        dataset = Path(i.id)
-        if dataset.name.startswith('details_'):
-            yield dataset
+    api = HfApi()
+    for i in api.list_datasets(author=author, search='details_'):
+        yield Path(i.id)
 
 def pull(datasets):
     with TemporaryDirectory() as cache_dir:
