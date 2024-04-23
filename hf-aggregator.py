@@ -110,7 +110,7 @@ def extract(ld_set, name):
     with TemporaryDirectory(prefix='hf_ds', suffix=suffix) as cache_dir:
         data = load_dataset(str(ld_set), name, cache_dir=cache_dir)
         for row in pull(data):
-            prompt = row['full_prompt']
+            prompt = row['hashes']['full_prompt']
             for metric in metrics:
                 value = row.get(metric)
                 if value is not None:
