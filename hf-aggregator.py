@@ -130,18 +130,24 @@ def evaluations(ld_set):
             if n.startswith('harness_'):
                 yield from extract(ld_set, n)
 
-def func(incoming, outgoing):
+def func(incoming, outgoing, chunk_size):
     while True:
         ld_set = incoming.get()
         Logger.info(ld_set)
 
+        results = []
         try:
-            results = list(map(asdict, evaluations(ld_set)))
+            for i in evaluations(ld_set):
+                results.append(asdict(i))
+                if len(results) > chunk_size:
+                    outgoing.put(results)
+                    results = []
         except ValueError as err:
-            results = []
             Logger.error(err)
+        finally:
+            outgoing.put(results)
 
-        outgoing.put(results)
+        outgoing.put(None)
 
 def ls(author):
     api = HfApi()
@@ -152,9 +158,13 @@ def ls(author):
         assert path.name.startswith(search)
         yield LeaderboardDataset.from_path(path)
 
+#
+#
+#
 if __name__ == '__main__':
     arguments = ArgumentParser()
     arguments.add_argument('--author', default='open-llm-leaderboard')
+    arguments.add_argument('--chunk-size', type=int, default=int(1e5))
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
@@ -163,6 +173,7 @@ if __name__ == '__main__':
     initargs = (
         outgoing,
         incoming,
+        args.chunk_size,
     )
 
     with Pool(args.workers, func, initargs):
@@ -172,9 +183,11 @@ if __name__ == '__main__':
             jobs += 1
 
         writer = None
-        for _ in range(jobs):
+        while jobs:
             rows = incoming.get()
-            if rows:
+            if rows is None:
+                jobs -= 1
+            elif rows:
                 if writer is None:
                     writer = csv.DictWriter(sys.stdout, fieldnames=rows[0])
                     writer.writeheader()
