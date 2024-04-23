@@ -77,24 +77,28 @@ class LeaderboardResult:
 #
 #
 #
-def pull(data):
-    latest = None
+def latest(data):
+    key = None
     for i in data.keys():
         try:
             value = datetime.strptime(i, '%Y_%m_%dT%H_%M_%S.%f')
         except ValueError:
             continue
-        key = DataSetKey(i, value)
-        if latest is None or latest > key:
-            latest = key
+        key_ = DataSetKey(i, value)
+        if key is None or key > key_:
+            key = key_
 
-    if latest is None:
-        Logger.warning(f'{data}: keys not timestamped')
-        latest = 'latest'
+    if key is None:
+        key = 'latest'
+        Logger.warning('Keys not timestamped: {}. Using "{}"'.format(
+            ', '.join(data.keys()),
+            key,
+        ))
+        assert key in data, data.keys()
     else:
-        latest = str(latest)
+        key = str(key)
 
-    yield from data.get(latest)
+    return data[key]
 
 def extract(ld_set, evaluation):
     kwargs = asdict(ld_set)
@@ -108,19 +112,21 @@ def extract(ld_set, evaluation):
     )
 
     with TemporaryDirectory(suffix=f'.{ld_set.path.name}') as cache_dir:
-        data = load_dataset(str(ld_set), evaluation, cache_dir=cache_dir)
-        for row in pull(data):
-            prompt = row['hashes']['full_prompt']
-            for metric in metrics:
-                if metric in row:
-                    value = float(row[metric])
-                    yield LeaderboardResult(
-                        evaluation=evaluation,
-                        prompt=prompt,
-                        metric=metric,
-                        value=value,
-                        **kwargs,
-                    )
+        path = str(ld_set)
+        data = latest(load_dataset(path, evaluation, cache_dir=cache_dir))
+
+    for row in data:
+        prompt = row['hashes']['full_prompt']
+        for metric in metrics:
+            if metric in row:
+                value = float(row[metric])
+                yield LeaderboardResult(
+                    evaluation=evaluation,
+                    prompt=prompt,
+                    metric=metric,
+                    value=value,
+                    **kwargs,
+                )
 
 def evaluations(ld_set):
     with TemporaryDirectory() as cache_dir:
