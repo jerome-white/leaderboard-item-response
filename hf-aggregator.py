@@ -96,10 +96,10 @@ def pull(data):
 
     yield from data.get(latest)
 
-def extract(ld_set, name):
+def extract(ld_set, evaluation):
     kwargs = asdict(ld_set)
     kwargs.pop('path')
-    suffix = f'.{ld_set.path.name}'
+
     metrics = (
         'f1',
         'mc2',
@@ -107,15 +107,15 @@ def extract(ld_set, name):
         'acc_norm',
     )
 
-    with TemporaryDirectory(prefix='hf_ds', suffix=suffix) as cache_dir:
-        data = load_dataset(str(ld_set), name, cache_dir=cache_dir)
+    with TemporaryDirectory(suffix=f'.{ld_set.path.name}') as cache_dir:
+        data = load_dataset(str(ld_set), evaluation, cache_dir=cache_dir)
         for row in pull(data):
             prompt = row['hashes']['full_prompt']
             for metric in metrics:
-                value = row.get(metric)
-                if value is not None:
+                if metric in row:
+                    value = float(row[metric])
                     yield LeaderboardResult(
-                        evaluation=name,
+                        evaluation=evaluation,
                         prompt=prompt,
                         metric=metric,
                         value=value,
