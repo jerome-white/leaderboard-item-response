@@ -106,6 +106,7 @@ def extract(ld_set, evaluation):
 
     metrics = (
         'f1',
+        'mc1',
         'mc2',
         'acc',
         'acc_norm',
