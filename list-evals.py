@@ -9,8 +9,7 @@ from multiprocessing import Pool
 from datasets import DownloadConfig, get_dataset_config_names
 from huggingface_hub import HfApi
 
-from myutils import EvaluationSet
-from logutils import Logger
+from myutils import Logger, EvaluationSet
 
 #
 #

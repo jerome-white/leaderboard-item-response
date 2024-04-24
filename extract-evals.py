@@ -9,8 +9,7 @@ from multiprocessing import Pool, Queue
 from datasets import load_dataset
 from huggingface_hub.utils import HfHubHTTPError
 
-from logutils import Logger
-from myutils import EvaluationSet, EvaluationInfo
+from myutils import Logger, EvaluationSet, EvaluationInfo
 
 #
 #
