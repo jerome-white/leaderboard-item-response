@@ -7,6 +7,8 @@ from multiprocessing import Pool, JoinableQueue
 import pandas as pd
 import awswrangler as wr
 
+from myutils import Logger
+
 def func(queue, args):
     path = urlunparse(args.bucket)
 
