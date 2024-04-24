@@ -44,9 +44,7 @@ class CSVWriter(ChunkedDataWriter):
 class SimpleStorageWriter(ChunkedDataWriter):
     def __init__(self, chunk_size: int, bucket: ParseResult):
         super().__init__(chunk_size)
-
-        path = Path(bucket.netloc, bucket.path)
-        self.path = str(path)
+        self.path = urlunparse(bucket)
 
     def flush(self):
         df = pd.DataFrame.from_records(self.cache)
