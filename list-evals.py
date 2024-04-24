@@ -1,9 +1,8 @@
 import sys
 import csv
-from pathlib import Path
 from argparse import ArgumentParser
 from tempfile import TemporaryDirectory
-from dataclasses import dataclass, fields, asdict
+from dataclasses import fields, asdict
 from multiprocessing import Pool
 
 from datasets import DownloadConfig, get_dataset_config_names
