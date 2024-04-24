@@ -89,22 +89,26 @@ def func(incoming, outgoing, args):
 
         ev_info = EvaluationInfo.from_evaluation_set(ev_set)
         with TemporaryDirectory(suffix=f'.{ev_set.uri.name}') as cache_dir:
+            kwargs = {
+                'cache_dir': cache_dir,
+            }
             download_config = DownloadConfig(
-                max_retries=args.max_retries,
                 disable_tqdm=True,
+                max_retries=args.max_retries,
+                **kwargs,
             )
             try:
-                data = load_dataset(
+                ds = load_dataset(
                     str(ev_info),
                     ev_info.evaluation,
-                    cache_dir=cache_dir,
                     download_config=download_config,
+                    **kwargs,
                 )
-                key = min(d_times(data.keys()))
+                key = min(d_times(ds.keys()))
                 values = extract(
                     ev_info,
                     key.to_datetime(),
-                    data.get(str(key)),
+                    ds.get(str(key)),
                 )
                 results.extend(map(asdict, values))
             except Exception as err:
