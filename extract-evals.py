@@ -105,7 +105,7 @@ def func(incoming, outgoing, args):
             key = min(d_times(data.keys()))
             for i in extract(ev_info, key.to_datetime(), data.get(str(key))):
                 results.append(asdict(i))
-                if len(results) > args.chunk_size:
+                if len(results) >= args.chunk_size:
                     outgoing.put(results)
                     results = []
         except ImportError as err:
