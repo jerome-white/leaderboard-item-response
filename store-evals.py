@@ -4,7 +4,7 @@ import functools as ft
 from urllib.parse import urlparse
 from argparse import ArgumentParser
 
-from mylib import CSVWriter, SimpleStorageWriter
+from mylib import Logger, CSVWriter, SimpleStorageWriter
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
@@ -21,4 +21,6 @@ if __name__ == '__main__':
 
     with Writer(chunk_size=args.chunk_size) as writer:
         for row in reader:
-            writer.write(row)
+            flushed = writer.write(row)
+            if flushed:
+                Logger.info(f'Flushed {args.chunk_size}')
