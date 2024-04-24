@@ -1,5 +1,6 @@
 import sys
 import csv
+import operator as op
 from pathlib import Path
 from argparse import ArgumentParser
 from tempfile import TemporaryDirectory
@@ -40,12 +41,8 @@ def func(dataset):
 
 def ls(author):
     api = HfApi()
-    search = 'details_'
-
-    for i in api.list_datasets(author=author, search=search):
-        path = Path(i.id)
-        assert path.name.startswith(search)
-        yield path
+    results = api.list_datasets(author=author, search='details_')
+    yield from map(op.attrgetter('id'), results)
 
 #
 #
