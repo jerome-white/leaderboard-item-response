@@ -20,7 +20,7 @@ def func(dataset):
     with TemporaryDirectory() as cache_dir:
         dc = DownloadConfig(cache_dir=cache_dir)
         try:
-            names = get_dataset_config_names(str(dataset), download_config=dc)
+            names = get_dataset_config_names(dataset, download_config=dc)
         except (ValueError, ConnectionError) as err:
             names = None
             Logger.exception('[{}] Cannot get config names: {} ({})'.format(
