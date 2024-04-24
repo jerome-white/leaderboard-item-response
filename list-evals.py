@@ -10,7 +10,7 @@ from datasets import DownloadConfig, get_dataset_config_names
 from datasets.data_files import EmptyDatasetError
 from huggingface_hub import HfApi
 
-from myutils import Logger, EvaluationSet
+from mylib import Logger, EvaluationSet
 
 #
 #
