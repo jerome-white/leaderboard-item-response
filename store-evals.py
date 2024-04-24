@@ -1,38 +1,10 @@
 import sys
 import csv
-from urllib.parse import urlparse, urlunparse
+import functools as ft
+from urllib.parse import urlparse
 from argparse import ArgumentParser
-from multiprocessing import Pool, JoinableQueue
 
-import pandas as pd
-import awswrangler as wr
-
-from mylib import Logger
-
-def func(queue, args):
-    path = urlunparse(args.bucket)
-
-    while True:
-        records = queue.get()
-        Logger.info(len(records))
-
-        df = pd.DataFrame.from_records(records)
-        wr.s3.to_parquet(
-            df=df,
-            path=path,
-            dataset=True,
-            use_threads=True,
-            compression='gzip',
-            partition_cols=[
-                'evaluation',
-                'author',
-            ],
-            dtype={
-                'date': 'date',
-            }
-        )
-
-        queue.task_done()
+from mylib import CSVWriter, SimpleStorageWriter
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
@@ -41,22 +13,12 @@ if __name__ == '__main__':
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
-    queue = JoinableQueue()
-    initargs = (
-        queue,
-        args,
-    )
+    reader = csv.DictReader(sys.stdin)
+    if args.bucket:
+        Writer = ft.partial(SimpleStorageWriter, bucket=args.bucket)
+    else:
+        Writer = ft.partial(CSVWriter, fp=sys.stdout)
 
-    with Pool(args.workers, func, initargs):
-        reader = csv.DictReader(sys.stdin)
-        records = []
-
+    with Writer(chunk_size=args.chunk_size) as writer:
         for row in reader:
-            records.append(row)
-            if len(records) >= args.chunk_size:
-                queue.put(records)
-                records = []
-        if records:
-            queue.put(records)
-
-        queue.join()
+            writer.write(row)
