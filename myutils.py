@@ -22,6 +22,9 @@ class EvaluationSet:
     uri: Path
     evaluation: str
 
+    def __post_init__(self):
+        self.uri = Path(self.uri)
+
     def __str__(self):
         return str(self.uri)
 
