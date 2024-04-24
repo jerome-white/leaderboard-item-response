@@ -1,1 +1,2 @@
-from .myutils import Logger, EvaluationSet, EvaluationInfo
+from .mytypes import EvaluationSet, EvaluationInfo
+from .logutils import Logger
