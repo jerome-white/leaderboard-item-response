@@ -54,9 +54,10 @@ if __name__ == '__main__':
     args = arguments.parse_args()
 
     with Pool(args.workers) as pool:
-        fieldnames = [ x.name for x in fields(Record) ]
+        fieldnames = [ x.name for x in fields(EvaluationSet) ]
         writer = csv.DictWriter(sys.stdout, fieldnames=fieldnames)
         writer.writeheader()
+
         for i in pool.imap_unordered(func, ls(args.author)):
             if i is not None:
                 writer.writerows(map(asdict, i))
