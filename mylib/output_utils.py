@@ -14,9 +14,9 @@ class ChunkedDataWriter:
 
     def __exit__(self, exc_type, exc_value, traceback):
         if self.cache:
-            self.flush(False)
+            self.flush()
 
-    def push(self, data):
+    def write(self, data):
         self.cache.append(data)
         if len(self.cache) >= self.chunk_size:
             self.flush()
