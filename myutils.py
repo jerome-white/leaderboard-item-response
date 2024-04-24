@@ -34,7 +34,7 @@ class EvaluationInfo(EvaluationSet):
     model: str
 
     @classmethod
-    def from_evaluation_set(cls, ev_set):
+    def from_evaluation_set(cls, ev_set: EvaluationSet):
         # parse the values
         (lhs, rhs) = map(ev_set.uri.name.find, ('_', '__'))
         (_lhs, _rhs) = (lhs, rhs)
