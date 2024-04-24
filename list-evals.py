@@ -18,7 +18,7 @@ def func(dataset):
     Logger.info(dataset)
 
     with TemporaryDirectory() as cache_dir:
-        dc = DownloadConfig(cache_dir=cache_dir)
+        dc = DownloadConfig(cache_dir=cache_dir, disable_tqdm=True)
         try:
             names = get_dataset_config_names(dataset, download_config=dc)
         except (ValueError, ConnectionError, EmptyDatasetError) as err:

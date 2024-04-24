@@ -6,7 +6,7 @@ from tempfile import TemporaryDirectory
 from dataclasses import dataclass, asdict
 from multiprocessing import Pool, Queue
 
-from datasets import load_dataset
+from datasets import DownloadConfig, load_dataset
 from huggingface_hub.utils import HfHubHTTPError
 
 from mylib import Logger, EvaluationSet, EvaluationInfo
@@ -82,9 +82,15 @@ def retrieve(info, retries):
     suffix = f'.{info.uri.name}'
     with TemporaryDirectory(suffix=suffix) as cache_dir:
         path = str(info)
+        download_config = DownloadConfig(disable_tqdm=True)
         for i in range(retries):
             try:
-                return load_dataset(path, info.evaluation, cache_dir=cache_dir)
+                return load_dataset(
+                    path,
+                    info.evaluation,
+                    cache_dir=cache_dir,
+                    download_config=download_config,
+                )
             except HfHubHTTPError as err:
                 Logger.warning(f'{i}: {err}')
 
