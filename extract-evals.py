@@ -103,17 +103,12 @@ def func(incoming, outgoing, args):
         try:
             data = retrieve(ev_info, args.retries)
             key = min(d_times(data.keys()))
-            for i in extract(ev_info, key.to_datetime(), data.get(str(key))):
-                results.append(asdict(i))
-                if len(results) >= args.chunk_size:
-                    outgoing.put(results)
-                    results = []
+            values = extract(ev_info, key.to_datetime(), data.get(str(key)))
+            results.extend(map(asdict, values))
         except ImportError as err:
             Logger.exception(f'Cannot retrieve results: {err}')
-        finally:
-            outgoing.put(results)
 
-        outgoing.put(None)
+        outgoing.put(results)
 
 #
 #
@@ -121,7 +116,6 @@ def func(incoming, outgoing, args):
 if __name__ == '__main__':
     arguments = ArgumentParser()
     arguments.add_argument('--retries', type=int, default=5)
-    arguments.add_argument('--chunk-size', type=int, default=int(1e5))
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
@@ -141,11 +135,9 @@ if __name__ == '__main__':
             jobs += 1
 
         writer = None
-        while jobs:
+        for _ in range(jobs):
             rows = incoming.get()
-            if rows is None:
-                jobs -= 1
-            elif rows:
+            if rows:
                 if writer is None:
                     writer = csv.DictWriter(sys.stdout, fieldnames=rows[0])
                     writer.writeheader()
