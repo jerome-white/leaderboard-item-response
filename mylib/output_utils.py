@@ -24,6 +24,8 @@ class ChunkedDataWriter:
             self.flush()
             self.cache = []
 
+        return not bool(self.cache)
+
     def flush(self):
         raise NotImplementedError()
 
