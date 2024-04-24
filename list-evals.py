@@ -7,6 +7,7 @@ from dataclasses import dataclass, fields, asdict
 from multiprocessing import Pool
 
 from datasets import DownloadConfig, get_dataset_config_names
+from datasets.data_files import EmptyDatasetError
 from huggingface_hub import HfApi
 
 from myutils import Logger, EvaluationSet
@@ -21,7 +22,7 @@ def func(dataset):
         dc = DownloadConfig(cache_dir=cache_dir)
         try:
             names = get_dataset_config_names(dataset, download_config=dc)
-        except (ValueError, ConnectionError) as err:
+        except (ValueError, ConnectionError, EmptyDatasetError) as err:
             names = None
             Logger.exception('[{}] Cannot get config names: {} ({})'.format(
                 dataset,
