@@ -1,11 +1,13 @@
 import csv
+from io import TextIOWrapper
 from pathlib import Path
+from urllib.parse import ParseResult, urlunparse
 
 import pandas as pd
 import awswrangler as wr
 
 class ChunkedDataWriter:
-    def __init__(self, chunk_size):
+    def __init__(self, chunk_size: int):
         self.chunk_size = chunk_size
         self.cache = []
 
@@ -16,7 +18,7 @@ class ChunkedDataWriter:
         if self.cache:
             self.flush()
 
-    def write(self, data):
+    def write(self, data: dict):
         self.cache.append(data)
         if len(self.cache) >= self.chunk_size:
             self.flush()
@@ -26,7 +28,7 @@ class ChunkedDataWriter:
         raise NotImplementedError()
 
 class CSVWriter(ChunkedDataWriter):
-    def	__init__(self, chunk_size, fp):
+    def	__init__(self, chunk_size: int, fp: TextIOWrapper):
         super().__init__(chunk_size)
 
         self.fp = fp
@@ -40,7 +42,7 @@ class CSVWriter(ChunkedDataWriter):
         self.writer.writerows(self.cache)
 
 class SimpleStorageWriter(ChunkedDataWriter):
-    def __init__(self, chunk_size, bucket):
+    def __init__(self, chunk_size: int, bucket: ParseResult):
         super().__init__(chunk_size)
 
         path = Path(bucket.netloc, bucket.path)
