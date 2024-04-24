@@ -7,7 +7,6 @@ from dataclasses import dataclass, asdict
 from multiprocessing import Pool, Queue
 
 from datasets import DownloadConfig, load_dataset
-from huggingface_hub.utils import HfHubHTTPError
 
 from mylib import Logger, EvaluationSet, EvaluationInfo
 
@@ -78,24 +77,6 @@ def extract(info, date, data):
                     **kwargs,
                 )
 
-def retrieve(info, retries):
-    suffix = f'.{info.uri.name}'
-    with TemporaryDirectory(suffix=suffix) as cache_dir:
-        path = str(info)
-        download_config = DownloadConfig(disable_tqdm=True)
-        for i in range(retries):
-            try:
-                return load_dataset(
-                    path,
-                    info.evaluation,
-                    cache_dir=cache_dir,
-                    download_config=download_config,
-                )
-            except HfHubHTTPError as err:
-                Logger.warning(f'{i}: {err}')
-
-    raise ImportError(info)
-
 #
 #
 #
@@ -105,14 +86,29 @@ def func(incoming, outgoing, args):
         Logger.info(ev_set)
 
         results = []
+
         ev_info = EvaluationInfo.from_evaluation_set(ev_set)
-        try:
-            data = retrieve(ev_info, args.retries)
-            key = min(d_times(data.keys()))
-            values = extract(ev_info, key.to_datetime(), data.get(str(key)))
-            results.extend(map(asdict, values))
-        except ImportError as err:
-            Logger.exception(f'Cannot retrieve results: {err}')
+        with TemporaryDirectory(suffix=f'.{ev_set.uri.name}') as cache_dir:
+            download_config = DownloadConfig(
+                max_retries=args.max_retries,
+                disable_tqdm=True,
+            )
+            try:
+                data = load_dataset(
+                    str(ev_info),
+                    ev_info.evaluation,
+                    cache_dir=cache_dir,
+                    download_config=download_config,
+                )
+                key = min(d_times(data.keys()))
+                values = extract(
+                    ev_info,
+                    key.to_datetime(),
+                    data.get(str(key)),
+                )
+                results.extend(map(asdict, values))
+            except Exception as err:
+                Logger.error(f'{ev_set}: Cannot retrieve data ({err})')
 
         outgoing.put(results)
 
@@ -121,7 +117,7 @@ def func(incoming, outgoing, args):
 #
 if __name__ == '__main__':
     arguments = ArgumentParser()
-    arguments.add_argument('--retries', type=int, default=5)
+    arguments.add_argument('--max-retries', type=int, default=5)
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 

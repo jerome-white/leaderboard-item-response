@@ -2,12 +2,10 @@ import sys
 import csv
 from argparse import ArgumentParser
 from tempfile import TemporaryDirectory
-from dataclasses import fields, asdict
+from dataclasses import asdict
 from multiprocessing import Pool, Queue
 
-from requests import ConnectionError
 from datasets import DownloadConfig, get_dataset_config_names
-from datasets.data_files import EmptyDatasetError
 from huggingface_hub import HfApi
 
 from mylib import Logger, EvaluationSet
@@ -15,34 +13,25 @@ from mylib import Logger, EvaluationSet
 #
 #
 #
-def retrieve(path):
-    with TemporaryDirectory() as cache_dir:
-        dc = DownloadConfig(cache_dir=cache_dir, disable_tqdm=True)
-        for _ in range(args.retries):
-            try:
-                return get_dataset_config_names(path, download_config=dc)
-            except ConnectionError:
-                continue
-            except (ValueError, EmptyDatasetError) as err:
-                break
-
-    raise ImportError()
-
 def func(incoming, outgoing, args):
     while True:
         path = incoming.get()
         Logger.info(path)
 
         records = []
-        try:
-            for i in retrieve(path):
-                if i.startswith('harness_'):
-                    ev_set = EvaluationSet(path, i)
-                    records.append(asdict(ev_set))
-        except ImportError as err:
-            Logger.error(f'{path}: Cannot get config names')
-        finally:
-            outgoing.put(records)
+        with TemporaryDirectory() as cache_dir:
+            dc = DownloadConfig(cache_dir=cache_dir,
+                                max_retries=args.max_retries,
+                                disable_tqdm=True)
+            try:
+                for i in get_dataset_config_names(path, download_config=dc):
+                    if i.startswith('harness_'):
+                        ev_set = EvaluationSet(path, i)
+                        records.append(asdict(ev_set))
+            except Exception as err:
+                Logger.error(f'{path}: Cannot get config names ({err})')
+
+        outgoing.put(records)
 
 #
 #
@@ -50,7 +39,7 @@ def func(incoming, outgoing, args):
 if __name__ == '__main__':
     arguments = ArgumentParser()
     arguments.add_argument('--author', default='open-llm-leaderboard')
-    arguments.add_argument('--retries', type=int, default=3)
+    arguments.add_argument('--max-retries', type=int, default=3)
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
