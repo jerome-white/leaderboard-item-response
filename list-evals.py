@@ -20,9 +20,11 @@ def func(incoming, outgoing, args):
 
         records = []
         with TemporaryDirectory() as cache_dir:
-            dc = DownloadConfig(cache_dir=cache_dir,
-                                max_retries=args.max_retries,
-                                disable_tqdm=True)
+            dc = DownloadConfig(
+                cache_dir=cache_dir,
+                max_retries=args.max_retries,
+                disable_tqdm=True,
+            )
             try:
                 for i in get_dataset_config_names(path, download_config=dc):
                     if i.startswith('harness_'):
