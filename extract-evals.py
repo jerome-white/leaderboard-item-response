@@ -8,7 +8,7 @@ from multiprocessing import Pool, Queue
 
 from datasets import DownloadConfig, load_dataset
 
-from mylib import Logger, EvaluationSet, EvaluationInfo
+from mylib import Logger, EvaluationSet, EvaluationInfo, LeaderboardResult
 
 #
 #
@@ -39,19 +39,6 @@ def d_times(values):
 #
 #
 #
-@dataclass
-class LeaderboardResult:
-    date: datetime
-    author: str
-    model: str
-    evaluation: str
-    prompt: str
-    metric: str
-    value: float
-
-#
-#
-#
 def extract(info, date, data):
     _metrics = (
         'f1',
@@ -60,9 +47,7 @@ def extract(info, date, data):
         'acc',
         'acc_norm',
     )
-
     kwargs = asdict(info)
-    kwargs.pop('uri')
 
     for row in data:
         prompt = row['hashes']['full_prompt']
@@ -100,7 +85,7 @@ def func(incoming, outgoing, args):
             try:
                 ds = load_dataset(
                     str(ev_info),
-                    ev_info.evaluation,
+                    ev_set.evaluation,
                     download_config=download_config,
                     **kwargs,
                 )
