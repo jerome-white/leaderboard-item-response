@@ -56,7 +56,7 @@ class SimpleStorageWriter(ChunkedDataWriter):
             use_threads=True,
             compression='gzip',
             partition_cols=[
-                'evaluation',
+                'task',
                 'author',
             ],
             dtype={
