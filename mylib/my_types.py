@@ -1,16 +1,34 @@
 from pathlib import Path
 from dataclasses import dataclass, asdict
 
+_evaluations = {
+    'arc': 'ARC',
+    'gsm8k': 'GSM8K',
+    'hellaswag': 'HellaSwag',
+    'winogrande': 'Winogrande',
+    'hendrycksTest': 'MMLU',
+    'truthfulqa-mc': 'TruthfulQA',
+}
+
 #
 #
 #
 @dataclass
 class EvaluationSet:
     uri: Path
-    evaluation: str
+    task: str
+    category: str
 
-    def __post_init__(self):
-        self.uri = Path(self.uri)
+    def __init__(self, uri, evaluation):
+        self.uri = Path(uri)
+
+        (lhs, *body, rhs) = evaluation.split('_')
+        assert lhs == 'harness', evaluation
+        assert rhs.isdecimal(), evaluation
+
+        name = body.pop(0)
+        self.category = ' '.join(body)
+        self.evaluation = _evaluations.get(name, name)
 
     def __str__(self):
         return str(self.uri)
