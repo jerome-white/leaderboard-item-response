@@ -1,6 +1,5 @@
 import csv
 from io import TextIOWrapper
-from pathlib import Path
 from urllib.parse import ParseResult, urlunparse
 
 import pandas as pd

@@ -1,4 +1,5 @@
 from pathlib import Path
+from datetime import datetime
 from dataclasses import dataclass, asdict
 
 _evaluations = {
@@ -61,8 +62,8 @@ class EvaluationSet:
 
     def get_task_category(self):
         (lhs, *body, rhs) = self.evaluation.split('_')
-        assert lhs == 'harness', evaluation
-        assert rhs.isdecimal(), evaluation
+        assert lhs == 'harness', self.evaluation
+        assert rhs.isdecimal(), self.evaluation
 
         name = body.pop(0)
         task = ' '.join(body)
