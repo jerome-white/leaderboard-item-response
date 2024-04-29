@@ -26,15 +26,18 @@ class _TaskCategory:
 #
 @dataclass
 class EvaluationSet:
-    uri: Path
+    uri: str
     evaluation: str
 
     def __str__(self):
-        return str(self.uri)
+        path = Path(self.uri, self.evaluation)
+        return str(path)
 
     def get_author_model(self):
+        uri = Path(self.uri)
+
         # parse the values
-        (lhs, rhs) = map(self.uri.name.find, ('_', '__'))
+        (lhs, rhs) = map(uri.name.find, ('_', '__'))
         (_lhs, _rhs) = (lhs, rhs)
 
         if lhs < 0:
@@ -53,10 +56,10 @@ class EvaluationSet:
         if lhs == _lhs:
             author = None
         elif rhs < 0:
-            author = self.uri.name[lhs:]
+            author = uri.name[lhs:]
         else:
-            author = self.uri.name[lhs:_rhs]
-        model = None if rhs == _rhs else self.uri.name[rhs:]
+            author = uri.name[lhs:_rhs]
+        model = None if rhs == _rhs else uri.name[rhs:]
 
         return _AuthorModel(author, model)
 
