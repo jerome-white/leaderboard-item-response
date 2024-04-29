@@ -19,7 +19,7 @@ class _AuthorModel:
 @dataclass
 class _TaskCategory:
     task: str
-    category: str = ''
+    category: str
 
 #
 #
