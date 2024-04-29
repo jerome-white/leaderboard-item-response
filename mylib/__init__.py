@@ -1,3 +1,3 @@
-from .my_types import EvaluationSet, EvaluationInfo
+from .my_types import EvaluationSet, EvaluationInfo, LeaderboardResult
 from .log_utils import Logger
-from .output_utils import CSVWriter, SimpleStorageWriter
+from .output_utils import CSVFileWriter, SimpleStorageWriter
