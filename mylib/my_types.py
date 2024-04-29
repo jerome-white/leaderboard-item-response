@@ -90,7 +90,7 @@ class EvaluationInfo(_TaskCategory, _AuthorModel):
         return cls(*kwargs)
 
 @dataclass
-class LeaderboardResult(EvaluationSet):
+class LeaderboardResult(EvaluationInfo):
     date: datetime
     prompt: str
     metric: str
