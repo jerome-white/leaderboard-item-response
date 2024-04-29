@@ -70,36 +70,26 @@ def func(incoming, outgoing, args):
         ev_set = incoming.get()
         Logger.info(ev_set)
 
-        results = []
-
         ev_info = EvaluationInfo.from_evaluation_set(ev_set)
-        with TemporaryDirectory(suffix=f'.{ev_set.uri.name}') as cache_dir:
-            kwargs = {
-                'cache_dir': cache_dir,
-            }
-            download_config = DownloadConfig(
-                disable_tqdm=True,
-                max_retries=args.max_retries,
-                **kwargs,
+        download_config = DownloadConfig(
+            disable_tqdm=True,
+            max_retries=args.max_retries,
+        )
+        try:
+            ds = load_dataset(
+                ev_set.uri,
+                ev_set.evaluation,
+                download_config=download_config,
+                streaming=True,
             )
-            try:
-                ds = load_dataset(
-                    str(ev_info),
-                    ev_set.evaluation,
-                    download_config=download_config,
-                    **kwargs,
-                )
-                key = min(d_times(ds.keys()))
-                values = extract(
-                    ev_info,
-                    key.to_datetime(),
-                    ds.get(str(key)),
-                )
-                results.extend(map(asdict, values))
-            except Exception as err:
-                Logger.error(f'{ev_set}: Cannot retrieve data ({err})')
-
-        outgoing.put(results)
+            key = min(d_times(ds.keys()))
+            values = extract(ev_info, key.to_datetime(), ds.get(str(key)))
+            results = list(map(asdict, values))
+        except Exception as err:
+            Logger.error(f'{ev_set}: Cannot retrieve data ({err})')
+            results = []
+        finally:
+            outgoing.put(results)
 
 #
 #
