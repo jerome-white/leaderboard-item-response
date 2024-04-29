@@ -54,7 +54,7 @@ class SimpleStorageWriter(ChunkedDataWriter):
               .DataFrame
               .from_records(self.cache)
               .astype({
-                  'date': 'timedelta64[ns]',
+                  'date': 'datetime64[ns]',
                   'value': float,
               }))
         wr.s3.to_parquet(
