@@ -11,8 +11,8 @@ _evaluations = {
     'truthfulqa-mc': 'TruthfulQA',
 }
 
-@dataclass
-class _AuthorModel:
+@dataclass(frozen=True)
+class AuthorModel:
     author: str
     model: str
 
