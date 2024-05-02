@@ -2,4 +2,5 @@ awswrangler
 datasets>=2.19
 huggingface_hub
 pandas
+requests
 
