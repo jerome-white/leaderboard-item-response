@@ -41,6 +41,7 @@ def d_times(values):
 #
 def extract(info, date, data):
     _metrics = (
+        'em',
         'f1',
         'mc1',
         'mc2',
