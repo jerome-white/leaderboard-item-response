@@ -6,6 +6,7 @@ from tempfile import TemporaryDirectory
 from dataclasses import dataclass, asdict
 from multiprocessing import Pool, Queue
 
+import pandas as pd
 from datasets import DownloadConfig, load_dataset
 
 from mylib import Logger, EvaluationSet, EvaluationInfo, LeaderboardResult
@@ -66,31 +67,39 @@ def extract(info, date, data):
 #
 #
 #
-def func(incoming, outgoing, args):
-    while True:
-        ev_set = incoming.get()
-        Logger.info(ev_set)
+def each(df):
+    for i in df.itertuples(index=False):
+        kwargs = i._asdict()
+        yield EvaluationSet(**kwargs)
 
-        ev_info = EvaluationInfo.from_evaluation_set(ev_set)
-        download_config = DownloadConfig(
-            disable_tqdm=True,
-            max_retries=args.max_retries,
-        )
-        try:
-            ds = load_dataset(
-                ev_set.uri,
-                ev_set.evaluation,
-                download_config=download_config,
-                streaming=True,
-            )
-            key = min(d_times(ds.keys()))
-            values = extract(ev_info, key.to_datetime(), ds.get(str(key)))
-            results = list(map(asdict, values))
-        except Exception as err:
-            Logger.error(f'{ev_set}: Cannot retrieve data ({err})')
-            results = []
-        finally:
-            outgoing.put(results)
+def func(incoming, outgoing, args):
+    download_config = DownloadConfig(
+        disable_tqdm=True,
+        max_retries=args.max_retries,
+    )
+
+    while True:
+        (group, df) = incoming.get()
+        Logger.critical(group)
+
+        for i in each(df):
+            Logger.info(i)
+
+            info = EvaluationInfo.from_evaluation_set(i)
+            try:
+                ds = load_dataset(
+                    i.uri,
+                    i.evaluation,
+                    download_config=download_config,
+                    streaming=True,
+                )
+                key = min(d_times(ds.keys()))
+                values = extract(info, key.to_datetime(), ds.get(str(key)))
+                outgoing.put(list(map(asdict, values)))
+            except Exception as err:
+                Logger.error(f'{i}: Cannot retrieve data ({err})')
+
+        outgoing.put(None)
 
 #
 #
@@ -110,16 +119,18 @@ if __name__ == '__main__':
     )
 
     with Pool(args.workers, func, initargs):
+        df = pd.read_csv(sys.stdin)
         jobs = 0
-        reader = csv.DictReader(sys.stdin)
-        for row in reader:
-            outgoing.put(EvaluationSet(**row))
+        for i in df.groupby('uri', order=False):
+            outgoing.put(i)
             jobs += 1
 
         writer = None
-        for _ in range(jobs):
+        while jobs:
             rows = incoming.get()
-            if rows:
+            if rows is None:
+                jobs -= 1
+            elif rows:
                 if writer is None:
                     writer = csv.DictWriter(sys.stdout, fieldnames=rows[0])
                     writer.writeheader()
