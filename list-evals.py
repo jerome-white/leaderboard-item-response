@@ -1,5 +1,6 @@
 import sys
 import csv
+from pathlib import Path
 from argparse import ArgumentParser
 from tempfile import TemporaryDirectory
 from dataclasses import asdict
