@@ -44,7 +44,7 @@ if __name__ == '__main__':
     response = ''.join(get(args.source, args.variable_name))
     for i in ast.literal_eval(response):
         try:
-            (author, model) = map(x.strip() for x in i.split('/'))
+            (author, model) = (x.strip() for x in i.split('/'))
         except ValueError:
             Logger.error(f'Bad author/model: {i}')
             continue
