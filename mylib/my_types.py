@@ -61,7 +61,7 @@ class EvaluationSet:
             author = uri.name[lhs:_rhs]
         model = None if rhs == _rhs else uri.name[rhs:]
 
-        return _AuthorModel(author, model)
+        return AuthorModel(author, model)
 
     def get_task_category(self):
         (lhs, *body, rhs) = self.evaluation.split('_')
@@ -75,7 +75,7 @@ class EvaluationSet:
         return _TaskCategory(task, category)
 
 @dataclass
-class EvaluationInfo(_TaskCategory, _AuthorModel):
+class EvaluationInfo(_TaskCategory, AuthorModel):
     @classmethod
     def from_evaluation_set(cls, ev_set: EvaluationSet):
         kwargs = {}
