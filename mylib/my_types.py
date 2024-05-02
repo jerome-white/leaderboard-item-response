@@ -16,7 +16,7 @@ class AuthorModel:
     author: str
     model: str
 
-@dataclass
+@dataclass(frozen=True)
 class _TaskCategory:
     task: str
     category: str
@@ -74,7 +74,7 @@ class EvaluationSet:
 
         return _TaskCategory(task, category)
 
-@dataclass
+@dataclass(frozen=True)
 class EvaluationInfo(_TaskCategory, AuthorModel):
     @classmethod
     def from_evaluation_set(cls, ev_set: EvaluationSet):
@@ -89,7 +89,7 @@ class EvaluationInfo(_TaskCategory, AuthorModel):
 
         return cls(*kwargs)
 
-@dataclass
+@dataclass(frozen=True)
 class LeaderboardResult(EvaluationInfo):
     date: datetime
     prompt: str
