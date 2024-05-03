@@ -38,7 +38,7 @@ def d_times(values):
 #
 #
 #
-def extract(info, date, data):
+class MetricExtractor:
     _metrics = (
         'em',
         'f1',
@@ -47,20 +47,27 @@ def extract(info, date, data):
         'acc',
         'acc_norm',
     )
-    kwargs = asdict(info)
 
-    for row in data:
-        prompt = row['hashes']['full_prompt']
-        for metric in _metrics:
-            if metric in row:
-                value = float(row[metric])
-                yield LeaderboardResult(
-                    date=date,
-                    prompt=prompt,
-                    metric=metric,
-                    value=value,
-                    **kwargs,
-                )
+    def __init__(self, ev_set):
+        ev_info = EvaluationInfo.from_evaluation_set(ev_set)
+        self.kwargs = asdict(ev_info)
+
+    def __call__(self, dataset):
+        key = min(d_times(dataset.keys()))
+        date = key.to_datetime()
+
+        for row in dataset.get(str(key)):
+            prompt = row['hashes']['full_prompt']
+            for metric in self._metrics:
+                if metric in row:
+                    value = float(row[metric])
+                    yield LeaderboardResult(
+                        date=date,
+                        prompt=prompt,
+                        metric=metric,
+                        value=value,
+                        **self.kwargs,
+                    )
 
 #
 #
@@ -75,7 +82,7 @@ def func(incoming, outgoing, args):
         ev_set = incoming.get()
         Logger.info(ev_set)
 
-        info = EvaluationInfo.from_evaluation_set(ev_set)
+        extractor = MetricExtractor(ev_set)
         try:
             ds = load_dataset(
                 ev_set.uri,
@@ -83,9 +90,7 @@ def func(incoming, outgoing, args):
                 download_config=download_config,
                 streaming=True,
             )
-            key = min(d_times(ds.keys()))
-            values = extract(info, key.to_datetime(), ds.get(str(key)))
-            outgoing.put(list(map(asdict, values)))
+            outgoing.put(list(map(asdict, extractor(ds))))
         except Exception as err:
             Logger.error(f'{ev_set}: Cannot retrieve data ({err})')
         finally:
