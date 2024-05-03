@@ -17,7 +17,7 @@ class AuthorModel:
     model: str
 
 @dataclass(frozen=True)
-class _TaskCategory:
+class TaskCategory:
     task: str
     category: str
 
@@ -72,10 +72,10 @@ class EvaluationSet:
         task = ' '.join(body)
         category = _evaluations.get(name, name)
 
-        return _TaskCategory(task, category)
+        return TaskCategory(task, category)
 
 @dataclass(frozen=True)
-class EvaluationInfo(_TaskCategory, AuthorModel):
+class EvaluationInfo(TaskCategory, AuthorModel):
     @classmethod
     def from_evaluation_set(cls, ev_set: EvaluationSet):
         kwargs = {}
@@ -83,7 +83,6 @@ class EvaluationInfo(_TaskCategory, AuthorModel):
             ev_set.get_author_model,
             ev_set.get_task_category,
         )
-
         for i in methods:
             kwargs.update(asdict(i()))
 
