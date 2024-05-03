@@ -90,8 +90,11 @@ class EvaluationInfo(_TaskCategory, AuthorModel):
         return cls(*kwargs)
 
 @dataclass(frozen=True)
-class LeaderboardResult(EvaluationInfo):
-    date: datetime
-    prompt: str
+class LeaderboardValue:
     metric: str
     value: float
+
+@dataclass(frozen=True)
+class LeaderboardResult(EvaluationInfo, LeaderboardValue):
+    date: datetime
+    prompt: str
