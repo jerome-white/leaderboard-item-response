@@ -108,7 +108,7 @@ def func(incoming, outgoing, args):
             )
             outgoing.put(list(map(asdict, extractor(ds))))
         except Exception as err:
-            Logger.error(f'{ev_set}: Cannot retrieve data ({err})')
+            Logger.error('%s: %s (%s)', ev_set, err, type(err).__name__)
         finally:
             outgoing.put(None)
 
