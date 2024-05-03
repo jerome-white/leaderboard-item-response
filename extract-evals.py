@@ -1,5 +1,6 @@
 import sys
 import csv
+from hashlib import blake2b
 from datetime import datetime
 from argparse import ArgumentParser
 from dataclasses import dataclass, asdict
@@ -7,7 +8,13 @@ from multiprocessing import Pool, Queue
 
 from datasets import DownloadConfig, load_dataset
 
-from mylib import Logger, EvaluationSet, EvaluationInfo, LeaderboardResult
+from mylib import (
+    Logger,
+    EvaluationSet,
+    EvaluationInfo,
+    LeaderboardValue,
+    LeaderboardResult,
+)
 
 #
 #
@@ -47,6 +54,7 @@ class MetricExtractor:
         'acc',
         'acc_norm',
     )
+    _digest_size = 16
 
     def __init__(self, ev_set):
         ev_info = EvaluationInfo.from_evaluation_set(ev_set)
@@ -57,17 +65,25 @@ class MetricExtractor:
         date = key.to_datetime()
 
         for row in dataset.get(str(key)):
-            prompt = row['hashes']['full_prompt']
-            for metric in self._metrics:
-                if metric in row:
-                    value = float(row[metric])
-                    yield LeaderboardResult(
-                        date=date,
-                        prompt=prompt,
-                        metric=metric,
-                        value=value,
-                        **self.kwargs,
-                    )
+            prompt = self.encode(row['full_prompt'])
+            for m in self.metrics(row):
+                kwargs = asdict(m)
+                yield LeaderboardResult(
+                    date=date,
+                    prompt=prompt,
+                    **kwargs,
+                    **self.kwargs,
+                )
+
+    def encode(self, value):
+        message = blake2b(value.encode(), digest_size=self._digest_size)
+        return message.hexdigest()
+
+    def metrics(self, record):
+        for metric in self._metrics:
+            if metric in record:
+                value = float(record[metric])
+                yield LeaderboardValue(metric, value)
 
 #
 #
