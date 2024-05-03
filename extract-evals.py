@@ -1,3 +1,4 @@
+import os
 import sys
 import csv
 from hashlib import blake2b
@@ -92,6 +93,7 @@ def func(incoming, outgoing, args):
     download_config = DownloadConfig(
         disable_tqdm=True,
         max_retries=args.max_retries,
+        token=os.getenv('HF_BEARER_TOKEN'),
     )
 
     while True:

@@ -1,3 +1,4 @@
+import os
 import sys
 import csv
 from argparse import ArgumentParser
@@ -14,6 +15,7 @@ from mylib import Logger, EvaluationSet
 #
 #
 def func(incoming, outgoing, args):
+    token = os.getenv('HF_BEARER_TOKEN')
     while True:
         path = incoming.get()
         Logger.info(path)
@@ -21,9 +23,10 @@ def func(incoming, outgoing, args):
         records = []
         with TemporaryDirectory() as cache_dir:
             dc = DownloadConfig(
+                token=token,
+                disable_tqdm=True,
                 cache_dir=cache_dir,
                 max_retries=args.max_retries,
-                disable_tqdm=True,
             )
             try:
                 for i in get_dataset_config_names(path, download_config=dc):
