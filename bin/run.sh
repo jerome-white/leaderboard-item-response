@@ -4,7 +4,7 @@ ROOT=`git rev-parse --show-toplevel`
 
 export PYTHONPATH=$ROOT
 export PYTHONLOGLEVEL=info
-export HF_BEARER_TOKEN=
+export HF_TOKEN=
 export NUMEXPR_MAX_THREADS=`nproc`
 export TMPDIR=/tmp/huggingface
 
