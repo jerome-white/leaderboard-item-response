@@ -1,5 +1,6 @@
 import sys
 import csv
+import itertools as it
 from pathlib import Path
 from hashlib import blake2b
 from datetime import datetime
@@ -62,13 +63,61 @@ class AuthorModel:
             self.author = name[lhs:_rhs]
         self.model = None if rhs == _rhs else name[rhs:]
 
+#
+#
+#
+class DatasetIterator:
+    _digest_size = 16
+
+    def __init__(self, df):
+        self.df = df
+
+    def __iter__(self):
+        for i in self.df.itertuples(index=False):
+            instruction = i.full_prompt.encode()
+            message = blake2b(instruction, digest_size=self._digest_size)
+            prompt = message.hexdigest()
+
+            for (m, v) in self.metrics(i):
+                yield {
+                    'prompt': prompt,
+                    'metric': m,
+                    'value': float(v),
+		}
+
+    def metrics(self, data):
+        raise NotImplementedError()
+
+class NestedDatasetIterator(DatasetIterator):
+    def metrics(self, data):
+        yield from data.metrics.items()
+
+class ExplicitDatasetIterator(DatasetIterator):
+    _prefixes = (
+        '',
+        'metric.',
+    )
+    _metrics = (
+        'em',
+        'f1',
+        'mc1',
+        'mc2',
+        'acc',
+        'acc_norm',
+    )
+
+    def metrics(self, data):
+        data = data._asdict()
+        for (i, j) in it.product(self._prefixes, self._metrics):
+            key = i + j
+            if key in data:
+                yield (j, data[key])
+
+#
+#
+#
 def func(incoming, outgoing):
     root = Path('datasets', 'open-llm-leaderboard')
-    columns = [
-        'metrics',
-        'full_prompt',
-    ]
-    digest_size = 16
     dtypes = (
         AuthorModel,
         CreationDate,
@@ -88,19 +137,15 @@ def func(incoming, outgoing):
             header.update(asdict(i(j)))
 
         df = pd.read_parquet(target.to_string(path))
-        for i in df.itertuples(index=False):
-            instruction = i.full_prompt.encode()
-            message = blake2b(instruction, digest_size=digest_size)
-            prompt = message.hexdigest()
+        if 'metrics' in df.columns:
+            iterator = NestedDatasetIterator
+        else:
+            iterator = ExplicitDatasetIterator
 
-            for (k, v) in i.metrics.items():
-                r = dict(header)
-                r.update({
-                    'prompt': prompt,
-                    'metric': k,
-                    'value': float(v),
-                })
-                records.append(r)
+        for i in iterator(df):
+            rec = dict(header)
+            rec.update(i)
+            records.append(rec)
 
         outgoing.put(records)
 #
