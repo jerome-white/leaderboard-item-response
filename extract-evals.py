@@ -1,6 +1,9 @@
 import sys
 import csv
+import uuid
+import string
 import itertools as it
+import functools as ft
 from pathlib import Path
 from hashlib import blake2b
 from datetime import datetime
@@ -11,6 +14,15 @@ from multiprocessing import Pool, Queue
 import pandas as pd
 
 from mylib import Logger, DatasetPathHandler, hf_datetime
+
+@ft.cache
+def clean(name, delimiter='_'):
+    letters = []
+    for n in name:
+        l = delimiter if n in string.punctuation else n
+        letters.append(l)
+
+    return ''.join(letters)
 
 @dataclass
 class CreationDate:
@@ -32,6 +44,10 @@ class EvaluationTask:
 
         self.task = parts[0]
         self.category = parts[1] if n > 1 else ''
+
+    def to_path(self):
+        args = map(clean, (self.task, self.category))
+        return Path(*args)
 
 @dataclass
 class AuthorModel:
@@ -69,14 +85,16 @@ class AuthorModel:
 class DatasetIterator:
     _digest_size = 16
 
-    def __init__(self, df):
+    def __init__(self, df, recorder):
         self.df = df
+        self.record = recorder
 
     def __iter__(self):
         for i in self.df.itertuples(index=False):
             instruction = i.full_prompt.encode()
             message = blake2b(instruction, digest_size=self._digest_size)
             prompt = message.hexdigest()
+            self.record(prompt, i.full_prompt)
 
             for (m, v) in self.metrics(i):
                 yield {
@@ -116,9 +134,35 @@ class ExplicitDatasetIterator(DatasetIterator):
 #
 #
 #
-def func(incoming, outgoing):
+class PromptRecorder:
+    def __call__(self, p_id, text):
+        raise NotImplementedError()
+
+class NoOpPromptRecorder(PromptRecorder):
+    def __call__(self, p_id, text):
+        return
+
+class UniquePromptRecorder(PromptRecorder):
+    def __init__(self, root, task):
+        super().__init__()
+        self.output = root.joinpath(task.to_path())
+
+    def __call__(self, p_id, text):
+        name = str(uuid.uuid4())
+        output = self.output.joinpath(p_id, name)
+        try:
+            output.parent.mkdir(parents=True)
+        except FileExistsError:
+            return
+
+        output.write_text(text)
+
+#
+#
+#
+def func(incoming, outgoing, args):
     root = Path('datasets', 'open-llm-leaderboard')
-    dtypes = (
+    dtypes = ( # do not reorder!
         AuthorModel,
         CreationDate,
         EvaluationTask,
@@ -129,31 +173,40 @@ def func(incoming, outgoing):
         path = incoming.get()
         Logger.info(path)
 
-        header = {}
-        records = []
-
         rel = path.relative_to(root)
-        for (i, j) in zip(dtypes, rel.parts):
-            header.update(asdict(i(j)))
+        info = [ x(y) for (x, y) in zip(dtypes, rel.parts) ]
 
+        # Establish the header
+        header = {}
+        for i in info:
+            header.update(asdict(i))
+
+        #
+        if args.save_prompts:
+            recorder = UniquePromptRecorder(args.save_prompts, info[-1])
+        else:
+            recorder = NoOpPromptRecorder()
+
+        #
         df = pd.read_parquet(target.to_string(path))
         if 'metrics' in df.columns:
             iterator = NestedDatasetIterator
         else:
             iterator = ExplicitDatasetIterator
 
-        for i in iterator(df):
+        #
+        records = []
+        for i in iterator(df, recorder):
             rec = dict(header)
             rec.update(i)
             records.append(rec)
-
         outgoing.put(records)
 #
 #
 #
 if __name__ == '__main__':
     arguments = ArgumentParser()
-    # arguments.add_argument('--max-retries', type=int, default=5)
+    arguments.add_argument('--save-prompts', type=Path)
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
@@ -162,6 +215,7 @@ if __name__ == '__main__':
     initargs = (
         outgoing,
         incoming,
+        args,
     )
 
     with Pool(args.workers, func, initargs):
