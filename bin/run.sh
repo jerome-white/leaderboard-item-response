@@ -21,6 +21,7 @@ _flagged=https://huggingface.co/spaces/HuggingFaceH4/open_llm_leaderboard/raw/ma
 #
 python $ROOT/list-evals.py \
     | python $ROOT/remove-flagged.py --source $_flagged \
+    | python $ROOT/list-results.py \
     | python $ROOT/extract-evals.py \
     | python $ROOT/store-evals.py --output s3://$_s3_bucket/$_s3_path
 
