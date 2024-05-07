@@ -87,7 +87,7 @@ def func(incoming, outgoing, args):
             focus = min(fs.options(target.to_string(dataset)))
             results.extend(fs.results(target.to_string(focus.path)))
         except (ValueError, FileNotFoundError) as err:
-            Logger.error(f'{dataset}: {err}')
+            Logger.warning(f'{dataset}: {err}')
         outgoing.put(results)
 
 if __name__ == '__main__':
