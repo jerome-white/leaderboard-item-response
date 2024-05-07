@@ -43,14 +43,13 @@ def func(incoming, outgoing):
         dataset = incoming.get()
         Logger.info(dataset)
 
+        results = []
         try:
             focus = min(fs.options(target.to_string(dataset)))
-            results = list(fs.results(target.to_string(focus.path)))
+            results.extend(fs.results(target.to_string(focus.path)))
         except (ValueError, FileNotFoundError) as err:
             Logger.error(f'{dataset}: {err}')
-            results = None
-        finally:
-            outgoing.put(results)
+        outgoing.put(results)
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
