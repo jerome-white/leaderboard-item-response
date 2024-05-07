@@ -1,125 +1,114 @@
-import os
 import sys
 import csv
+from pathlib import Path
 from hashlib import blake2b
 from datetime import datetime
 from argparse import ArgumentParser
 from dataclasses import dataclass, asdict
 from multiprocessing import Pool, Queue
 
-from datasets import DownloadConfig, load_dataset
+import pandas as pd
 
-from mylib import (
-    Logger,
-    EvaluationSet,
-    EvaluationInfo,
-    LeaderboardValue,
-    LeaderboardResult,
-)
+from mylib import Logger, DatasetPathHandler, hf_datetime
 
-#
-#
-#
 @dataclass
-class DataSetKey:
-    key: str
-    value: datetime
+class CreationDate:
+    date: datetime
 
-    def __str__(self):
-        return self.key
+    def __post_init__(self):
+        self.date = hf_datetime(self.date)
 
-    def __lt__(self, other):
-        return self.value < other.value
+@dataclass
+class EvaluationTask:
+    task: str
+    category: str
 
-    def to_datetime(self):
-        return self.value
+    def __init__(self, info):
+        (_, name, _) = info.split('|')
+        parts = name.split('_', maxsplit=1)
+        n = len(parts)
+        assert 0 < n <= 2
 
-def d_times(values):
-    for i in values:
-        try:
-            v = datetime.strptime(i, '%Y_%m_%dT%H_%M_%S.%f')
-        except ValueError:
-            continue
+        self.task = parts[0]
+        self.category = parts[1] if n > 1 else ''
 
-        yield DataSetKey(i, v)
+@dataclass
+class AuthorModel:
+    author: str
+    model: str
 
-#
-#
-#
-class MetricExtractor:
-    _metrics = (
-        'em',
-        'f1',
-        'mc1',
-        'mc2',
-        'acc',
-        'acc_norm',
+    def __init__(self, name):
+        # parse the values
+        (lhs, rhs) = map(name.find, ('_', '__'))
+        if lhs < 0:
+            raise ValueError(f'Cannot parse name {name}')
+        (_lhs, _rhs) = (lhs, rhs)
+
+        # calculate the bounds
+        if lhs == rhs:
+            rhs += 2
+        elif rhs < 0:
+            lhs += 1
+        else:
+            lhs += 1
+            rhs += 2
+
+        # extract the names
+        if lhs == _lhs:
+            self.author = None
+        elif rhs < 0:
+            self.author = name[lhs:]
+        else:
+            self.author = name[lhs:_rhs]
+        self.model = None if rhs == _rhs else name[rhs:]
+
+def func(incoming, outgoing):
+    root = Path('datasets', 'open-llm-leaderboard')
+    columns = [
+        'metrics',
+        'full_prompt',
+    ]
+    digest_size = 16
+    dtypes = (
+        AuthorModel,
+        CreationDate,
+        EvaluationTask,
     )
-    _digest_size = 16
-
-    def __init__(self, ev_set):
-        ev_info = EvaluationInfo.from_evaluation_set(ev_set)
-        self.kwargs = asdict(ev_info)
-
-    def __call__(self, dataset):
-        key = min(d_times(dataset.keys()))
-        date = key.to_datetime()
-
-        for row in dataset.get(str(key)):
-            prompt = self.encode(row['full_prompt'])
-            for m in self.metrics(row):
-                kwargs = asdict(m)
-                yield LeaderboardResult(
-                    date=date,
-                    prompt=prompt,
-                    **kwargs,
-                    **self.kwargs,
-                )
-
-    def encode(self, value):
-        message = blake2b(value.encode(), digest_size=self._digest_size)
-        return message.hexdigest()
-
-    def metrics(self, record):
-        for metric in self._metrics:
-            if metric in record:
-                value = float(record[metric])
-                yield LeaderboardValue(metric, value)
-
-#
-#
-#
-def func(incoming, outgoing, args):
-    download_config = DownloadConfig(
-        disable_tqdm=True,
-        max_retries=args.max_retries,
-        token=os.getenv('HF_BEARER_TOKEN'),
-    )
+    target = DatasetPathHandler()
 
     while True:
-        ev_set = incoming.get()
-        Logger.info(ev_set)
+        path = incoming.get()
+        Logger.info(path)
 
-        extractor = MetricExtractor(ev_set)
-        try:
-            ds = load_dataset(
-                ev_set.uri,
-                ev_set.evaluation,
-                download_config=download_config,
-                streaming=True,
-            )
-            outgoing.put(list(map(asdict, extractor(ds))))
-        except Exception as err:
-            Logger.error('%s: %s (%s)', ev_set, err, type(err).__name__)
-        finally:
-            outgoing.put(None)
+        header = {}
+        records = []
 
+        rel = path.relative_to(root)
+        for (i, j) in zip(dtypes, rel.parts):
+            header.update(asdict(i(j)))
+
+        df = pd.read_parquet(target.to_string(path))
+        for i in df.itertuples(index=False):
+            instruction = i.full_prompt.encode()
+            message = blake2b(instruction, digest_size=digest_size)
+            prompt = message.hexdigest()
+
+            for (k, v) in i.metrics.items():
+                r = dict(header)
+                r.update({
+                    'prompt': prompt,
+                    'metric': k,
+                    'value': float(v),
+                })
+                records.append(r)
+
+        outgoing.put(records)
 #
 #
 #
 if __name__ == '__main__':
     arguments = ArgumentParser()
-    arguments.add_argument('--max-retries', type=int, default=5)
+    # arguments.add_argument('--max-retries', type=int, default=5)
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
@@ -128,23 +117,18 @@ if __name__ == '__main__':
     initargs = (
         outgoing,
         incoming,
-        args,
     )
 
     with Pool(args.workers, func, initargs):
         jobs = 0
-        reader = csv.DictReader(sys.stdin)
-        for row in reader:
-            ev_set = EvaluationSet(**row)
-            outgoing.put(ev_set)
+        for i in sys.stdin:
+            outgoing.put(Path(i.strip()))
             jobs += 1
 
         writer = None
-        while jobs:
+        for _ in range(jobs):
             rows = incoming.get()
-            if rows is None:
-                jobs -= 1
-            elif rows:
+            if rows:
                 if writer is None:
                     writer = csv.DictWriter(sys.stdout, fieldnames=rows[0])
                     writer.writeheader()
