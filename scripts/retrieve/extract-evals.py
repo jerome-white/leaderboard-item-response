@@ -283,10 +283,10 @@ def func(queue, args):
         except Exception as err:
             Logger.critical('%s: %s (%s)', path, err, type(err).__name__)
 
-        # Verify the possible write
+        # Checksum the write
         if dst.exists():
-            csum = FileChecksum(dst)
-            csum.write()
+            checksum = FileChecksum(dst)
+            checksum.write()
 
         queue.task_done()
 
@@ -311,8 +311,8 @@ if __name__ == '__main__':
         for i in args.index_path.rglob('*.info'):
             target = i.with_suffix('.csv.gz')
             if target.exists():
-                check = FileChecksum(target)
-                if check:
+                checksum = FileChecksum(target)
+                if checksum:
                     continue
             queue.put(target)
         queue.join()
