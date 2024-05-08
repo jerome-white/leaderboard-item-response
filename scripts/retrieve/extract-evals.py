@@ -193,13 +193,25 @@ class DatasetReader:
     def __init__(self, backoff):
         self.backoff = backoff
 
-    def read(self, target):
+    def get(self, target):
         for (i, j) in enumerate(self.backoff, 1):
             try:
                 return pd.read_parquet(target)
             except (HfHubHTTPError, FileNotFoundError) as err:
                 Logger.error('%s (attempt=%d, backoff=%ds)', err, i, j)
             time.sleep(j)
+
+    def read(self, target, header, recorder):
+        df = self.get(target)
+        if 'metrics' in df.columns:
+            iterator = NestedDatasetIterator
+        else:
+            iterator = ExplicitDatasetIterator
+
+        for i in iterator(df, recorder):
+            record = dict(header)
+            record.update(i)
+            yield record
 
 def func(queue, args):
     root = Path('datasets', 'open-llm-leaderboard')
@@ -224,27 +236,24 @@ def func(queue, args):
         for i in info:
             header.update(asdict(i))
 
-        #
+        # Record the prompts (or not)
         if args.save_prompts:
             recorder = UniquePromptRecorder(args.save_prompts, info[-1])
         else:
             recorder = NoOpPromptRecorder()
 
-        #
-        df = reader.read(target.to_string(path))
-        if 'metrics' in df.columns:
-            iterator = NestedDatasetIterator
-        else:
-            iterator = ExplicitDatasetIterator
-
-        #
-        records = []
-        for i in iterator(df, recorder):
-            rec = dict(header)
-            rec.update(i)
-            records.append(rec)
-        df = pd.DataFrame.from_records(records)
-        df.to_csv(path.with_suffix('.csv.gz'), index=False, compression='gzip')
+        # Read/write the data
+        source = target.to_string(path)
+        try:
+            records = reader.read(source, header, recorder)
+            df = pd.DataFrame.from_records(records)
+            df.to_csv(
+                path.with_suffix('.csv.gz'),
+                index=False,
+                compression='gzip',
+            )
+        except Exception as err:
+            Logger.critical('%s: %s (%s)', path, err, type(err).__name__)
 
         queue.task_done()
 
