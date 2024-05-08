@@ -201,6 +201,8 @@ class DatasetReader:
                 Logger.error('%s (attempt=%d, backoff=%ds)', err, i, j)
             time.sleep(j)
 
+        raise LookupError(target)
+
     def read(self, target, header, recorder):
         df = self.get(target)
         if 'metrics' in df.columns:
@@ -211,8 +213,12 @@ class DatasetReader:
         for i in iterator(df, recorder):
             record = dict(header)
             record.update(i)
+
             yield record
 
+#
+#
+#
 def func(queue, args):
     root = Path('datasets', 'open-llm-leaderboard')
     dtypes = ( # do not reorder!
