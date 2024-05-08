@@ -256,7 +256,7 @@ def func(queue, args):
     while True:
         info = queue.get()
 
-        path = info.read_text().strip()
+        path = Path(info.read_text().strip())
         rel = path.relative_to(root)
         info = [ x(y) for (x, y) in zip(dtypes, rel.parts) ]
 
