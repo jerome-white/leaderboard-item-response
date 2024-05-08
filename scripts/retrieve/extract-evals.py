@@ -11,7 +11,7 @@ from hashlib import blake2b
 from datetime import datetime
 from argparse import ArgumentParser
 from dataclasses import dataclass, asdict
-from multiprocessing import Pool, Queue
+from multiprocessing import Pool, JoinableQueue
 
 import pandas as pd
 from pydantic import TypeAdapter, ValidationError
@@ -301,7 +301,7 @@ if __name__ == '__main__':
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
-    queue = Queue()
+    queue = JoinableQueue()
     initargs = (
         queue,
         args,
