@@ -52,7 +52,9 @@ class FileChecksum:
 
     def __init__(self, path):
         self.path = path
-        self.target = self.path.with_suffix(f'.{self._method}')
+        while path.suffix:
+            path = path.with_suffix('')
+        self.target = path.with_suffix(f'.{self._method}')
 
     def __int__(self):
         with self.path.open('rb') as fp:
