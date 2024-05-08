@@ -19,7 +19,7 @@ if __name__ == '__main__':
 
         output = args.index_path.joinpath(root, name).with_suffix('.info')
         if output.exists():
-            Logger.error('%s exists')
+            Logger.error('%s exists', output)
             continue
         output.parent.mkdir(parents=True, exist_ok=True)
         output.write_text(i)
