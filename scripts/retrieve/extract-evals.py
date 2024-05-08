@@ -258,16 +258,16 @@ def func(queue, args):
 
         path = Path(info.read_text().strip())
         rel = path.relative_to(root)
-        info = [ x(y) for (x, y) in zip(dtypes, rel.parts) ]
+        basics = [ x(y) for (x, y) in zip(dtypes, rel.parts) ]
 
         # Establish the header
         header = {}
-        for i in info:
+        for i in basics:
             header.update(asdict(i))
 
         # Record the prompts (or not)
         if args.save_prompts:
-            recorder = UniquePromptRecorder(args.save_prompts, info[-1])
+            recorder = UniquePromptRecorder(args.save_prompts, basics[-1])
         else:
             recorder = NoOpPromptRecorder()
 
