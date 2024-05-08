@@ -209,7 +209,7 @@ def func(queue, args):
         EvaluationTask,
     )
     target = DatasetPathHandler()
-    reader = DatasetReader(Backoff(15, 0.1))
+    reader = DatasetReader(Backoff(args.backoff, 0.1))
 
     while True:
         info = queue.get()
@@ -255,6 +255,7 @@ if __name__ == '__main__':
     arguments = ArgumentParser()
     arguments.add_argument('--index-path', type=Path)
     arguments.add_argument('--save-prompts', type=Path)
+    arguments.add_argument('--backoff', type=float, default=15)
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
