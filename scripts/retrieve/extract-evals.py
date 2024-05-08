@@ -56,21 +56,18 @@ class FileChecksum:
             path = path.with_suffix('')
         self.target = path.with_suffix(f'.{self._method}')
 
-    def __int__(self):
+    def __str__(self):
         with self.path.open('rb') as fp:
             digest = hashlib.file_digest(fp, self._method)
 
         return digest.hexdigest()
 
     def __bool__(self):
-        other = self.target.read_text()
-        (reported, actual) = map(int, (other, self))
-
-        return reported == actual
+        return str(self) == self.target.read_text().strip()
 
     def write(self):
         with self.target.open('w') as fp:
-            print(int(self), file=fp)
+            print(self, file=fp)
 
 @dataclass
 class CreationDate:
