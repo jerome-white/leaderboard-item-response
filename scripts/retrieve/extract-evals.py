@@ -314,5 +314,5 @@ if __name__ == '__main__':
                 checksum = FileChecksum(target)
                 if checksum:
                     continue
-            queue.put(target)
+            queue.put(i)
         queue.join()
