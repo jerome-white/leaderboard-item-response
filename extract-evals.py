@@ -12,6 +12,8 @@ from dataclasses import dataclass, asdict
 from multiprocessing import Pool, Queue
 
 import pandas as pd
+from pydantic import TypeAdapter, ValidationError
+from huggingface_hub.utils import HfHubHTTPError
 
 from mylib import Logger, DatasetPathHandler, hf_datetime
 
@@ -23,6 +25,25 @@ def clean(name, delimiter='_'):
         letters.append(l)
 
     return ''.join(letters)
+
+class FloatAdapter:
+    def __init__(self):
+        (self.to_float, self.to_bool) = map(TypeAdapter, (float, bool))
+
+    def __call__(self, value):
+        for i in (self.to_float, self.to_bool):
+            try:
+                return i(value)
+            except ValidationError:
+                pass
+
+        raise ValueError(f'Cannot convert {value} to float')
+
+    def to_float(self, value):
+        return self.f.validate_python(value)
+
+    def to_bool(self, value):
+        return self.to_float(self.b.validate_python(value))
 
 @dataclass
 class CreationDate:
@@ -88,6 +109,7 @@ class DatasetIterator:
     def __init__(self, df, recorder):
         self.df = df
         self.record = recorder
+        self.to_float = FloatAdapter()
 
     def __iter__(self):
         for i in self.df.itertuples(index=False):
@@ -97,10 +119,16 @@ class DatasetIterator:
             self.record(prompt, i.full_prompt)
 
             for (m, v) in self.metrics(i):
+                try:
+                    value = self.to_float(v)
+                except ValueError as err:
+                    Logger.warning(err)
+                    continue
+
                 yield {
                     'prompt': prompt,
                     'metric': m,
-                    'value': float(v),
+                    'value': value,
 		}
 
     def metrics(self, data):
