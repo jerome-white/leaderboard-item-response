@@ -3,6 +3,7 @@ import csv
 import uuid
 import time
 import string
+import hashlib
 import itertools as it
 import functools as ft
 from pathlib import Path
@@ -45,6 +46,29 @@ class FloatAdapter:
 
     def to_bool(self, value):
         return self.to_float(self.b.validate_python(value))
+
+class FileChecksum:
+    _method = 'md5'
+
+    def __init__(self, path):
+        self.path = path
+        self.target = self.path.with_suffix(f'.{self._method}')
+
+    def __int__(self):
+        with self.path.open('rb') as fp:
+            digest = hashlib.file_digest(fp, self._method)
+
+        return digest.hexdigest()
+
+    def __bool__(self):
+        other = self.target.read_text()
+        (reported, actual) = map(int, (other, self))
+
+        return reported == actual
+
+    def write(self):
+        with self.target.open('w') as fp:
+            print(int(self), file=fp)
 
 @dataclass
 class CreationDate:
@@ -231,9 +255,8 @@ def func(queue, args):
 
     while True:
         info = queue.get()
-        path = info.read_text().strip()
-        Logger.info('%s %s', info, path)
 
+        path = info.read_text().strip()
         rel = path.relative_to(root)
         info = [ x(y) for (x, y) in zip(dtypes, rel.parts) ]
 
@@ -249,17 +272,21 @@ def func(queue, args):
             recorder = NoOpPromptRecorder()
 
         # Read/write the data
-        source = target.to_string(path)
+        src = target.to_string(path)
+        dst = info.with_suffix('.csv.gz')
+
+        Logger.info('%s %s', info, path)
         try:
-            records = reader.read(source, header, recorder)
+            records = reader.read(src, header, recorder)
             df = pd.DataFrame.from_records(records)
-            df.to_csv(
-                path.with_suffix('.csv.gz'),
-                index=False,
-                compression='gzip',
-            )
+            df.to_csv(dst, index=False, compression='gzip')
         except Exception as err:
             Logger.critical('%s: %s (%s)', path, err, type(err).__name__)
+
+        # Verify the possible write
+        if dst.exists():
+            csum = FileChecksum(dst)
+            csum.write()
 
         queue.task_done()
 
@@ -283,6 +310,9 @@ if __name__ == '__main__':
     with Pool(args.workers, func, initargs):
         for i in args.index_path.rglob('*.info'):
             target = i.with_suffix('.csv.gz')
-            if not target.exists():
-                queue.put(target)
+            if target.exists():
+                check = FileChecksum(target)
+                if check:
+                    continue
+            queue.put(target)
         queue.join()
