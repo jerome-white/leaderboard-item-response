@@ -313,6 +313,7 @@ if __name__ == '__main__':
             if target.exists():
                 checksum = FileChecksum(target)
                 if checksum:
+                    Logger.warning(f'Skipping {i}')
                     continue
             queue.put(i)
         queue.join()
