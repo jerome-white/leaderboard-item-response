@@ -201,7 +201,7 @@ class DatasetReader:
                 Logger.error('%s (attempt=%d, backoff=%ds)', err, i, j)
             time.sleep(j)
 
-def func(incoming, outgoing, args):
+def func(queue, args):
     root = Path('datasets', 'open-llm-leaderboard')
     dtypes = ( # do not reorder!
         AuthorModel,
@@ -212,7 +212,8 @@ def func(incoming, outgoing, args):
     reader = DatasetReader(Backoff(15, 0.1))
 
     while True:
-        path = incoming.get()
+        info = queue.get()
+        path = info.read_text().strip()
         Logger.info(path)
 
         rel = path.relative_to(root)
@@ -242,35 +243,30 @@ def func(incoming, outgoing, args):
             rec = dict(header)
             rec.update(i)
             records.append(rec)
-        outgoing.put(records)
+        df = pd.DataFrame.from_records(records)
+        df.to_csv(path.with_suffix('.csv.gz'), index=False, compression='gzip')
+
+        queue.task_done()
+
 #
 #
 #
 if __name__ == '__main__':
     arguments = ArgumentParser()
+    arguments.add_argument('--index-path', type=Path)
     arguments.add_argument('--save-prompts', type=Path)
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
-    incoming = Queue()
-    outgoing = Queue()
+    queue = Queue()
     initargs = (
-        outgoing,
-        incoming,
+        queue,
         args,
     )
 
     with Pool(args.workers, func, initargs):
-        jobs = 0
-        for i in sys.stdin:
-            outgoing.put(Path(i.strip()))
-            jobs += 1
-
-        writer = None
-        for _ in range(jobs):
-            rows = incoming.get()
-            if rows:
-                if writer is None:
-                    writer = csv.DictWriter(sys.stdout, fieldnames=rows[0])
-                    writer.writeheader()
-                writer.writerows(rows)
+        for i in args.index_path.rglob('*.info'):
+            target = i.with_suffix('.csv.gz')
+            if not target.exists():
+                queue.put(target)
+        queue.join()
