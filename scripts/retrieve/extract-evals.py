@@ -226,7 +226,7 @@ def func(queue, args):
     while True:
         info = queue.get()
         path = info.read_text().strip()
-        Logger.info(path)
+        Logger.info('%s %s', info, path)
 
         rel = path.relative_to(root)
         info = [ x(y) for (x, y) in zip(dtypes, rel.parts) ]
