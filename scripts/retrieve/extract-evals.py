@@ -30,7 +30,7 @@ def clean(name, delimiter='_'):
 
 class FloatAdapter:
     def __init__(self):
-        (self.to_float, self.to_bool) = map(TypeAdapter, (float, bool))
+        (self.ftype, self.btype) = map(TypeAdapter, (float, bool))
 
     def __call__(self, value):
         for i in (self.to_float, self.to_bool):
@@ -42,10 +42,10 @@ class FloatAdapter:
         raise ValueError(f'Cannot convert {value} to float')
 
     def to_float(self, value):
-        return self.f.validate_python(value)
+        return self.ftype.validate_python(value)
 
     def to_bool(self, value):
-        return self.to_float(self.b.validate_python(value))
+        return self.to_float(self.btype.validate_python(value))
 
 class FileChecksum:
     _method = 'md5'
