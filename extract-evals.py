@@ -1,6 +1,7 @@
 import sys
 import csv
 import uuid
+import time
 import string
 import itertools as it
 import functools as ft
@@ -15,7 +16,7 @@ import pandas as pd
 from pydantic import TypeAdapter, ValidationError
 from huggingface_hub.utils import HfHubHTTPError
 
-from mylib import Logger, DatasetPathHandler, hf_datetime
+from mylib import Logger, Backoff, DatasetPathHandler, hf_datetime
 
 @ft.cache
 def clean(name, delimiter='_'):
@@ -188,6 +189,18 @@ class UniquePromptRecorder(PromptRecorder):
 #
 #
 #
+class DatasetReader:
+    def __init__(self, backoff):
+        self.backoff = backoff
+
+    def read(self, target):
+        for (i, j) in enumerate(self.backoff, 1):
+            try:
+                return pd.read_parquet(target)
+            except (HfHubHTTPError, FileNotFoundError) as err:
+                Logger.error('%s (attempt=%d, backoff=%ds)', err, i, j)
+            time.sleep(j)
+
 def func(incoming, outgoing, args):
     root = Path('datasets', 'open-llm-leaderboard')
     dtypes = ( # do not reorder!
@@ -196,6 +209,7 @@ def func(incoming, outgoing, args):
         EvaluationTask,
     )
     target = DatasetPathHandler()
+    reader = DatasetReader(Backoff(15, 0.1))
 
     while True:
         path = incoming.get()
@@ -216,7 +230,7 @@ def func(incoming, outgoing, args):
             recorder = NoOpPromptRecorder()
 
         #
-        df = pd.read_parquet(target.to_string(path))
+        df = reader.read(target.to_string(path))
         if 'metrics' in df.columns:
             iterator = NestedDatasetIterator
         else:
