@@ -1,9 +1,6 @@
-import sys
-import csv
 import uuid
 import time
 import string
-import hashlib
 import itertools as it
 import functools as ft
 from pathlib import Path
@@ -17,7 +14,13 @@ import pandas as pd
 from pydantic import TypeAdapter, ValidationError
 from huggingface_hub.utils import HfHubHTTPError
 
-from mylib import Logger, Backoff, DatasetPathHandler, hf_datetime
+from mylib import (
+    Logger,
+    Backoff,
+    FileChecksum,
+    DatasetPathHandler,
+    hf_datetime,
+)
 
 @ft.cache
 def clean(name, delimiter='_'):
@@ -46,30 +49,6 @@ class FloatAdapter:
 
     def to_bool(self, value):
         return self.to_float(self.btype.validate_python(value))
-
-class FileChecksum:
-    _method = 'md5'
-
-    def __init__(self, data):
-        self.data = data
-        while data.suffix:
-            data = data.with_suffix('')
-        self.checksum = data.with_suffix(f'.{self._method}')
-
-    def __str__(self):
-        with self.data.open('rb') as fp:
-            digest = hashlib.file_digest(fp, self._method)
-
-        return digest.hexdigest()
-
-    def __bool__(self):
-        if not self.checksum.exists():
-            return False
-        return str(self) == self.checksum.read_text().strip()
-
-    def write(self):
-        with self.checksum.open('w') as fp:
-            print(self, file=fp)
 
 @dataclass
 class CreationDate:
