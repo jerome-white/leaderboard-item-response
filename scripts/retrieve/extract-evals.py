@@ -1,4 +1,3 @@
-import uuid
 import time
 import string
 import itertools as it
