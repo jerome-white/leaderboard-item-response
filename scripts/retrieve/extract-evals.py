@@ -167,32 +167,6 @@ class ExplicitDatasetIterator(DatasetIterator):
 #
 #
 #
-class PromptRecorder:
-    def __call__(self, p_id, text):
-        raise NotImplementedError()
-
-class NoOpPromptRecorder(PromptRecorder):
-    def __call__(self, p_id, text):
-        return
-
-class UniquePromptRecorder(PromptRecorder):
-    def __init__(self, root, task):
-        super().__init__()
-        self.output = root.joinpath(task.to_path())
-
-    def __call__(self, p_id, text):
-        name = str(uuid.uuid4())
-        output = self.output.joinpath(p_id, name)
-        try:
-            output.parent.mkdir(parents=True)
-        except FileExistsError:
-            return
-
-        output.write_text(text)
-
-#
-#
-#
 class DatasetReader:
     def __init__(self, backoff):
         self.backoff = backoff
@@ -225,7 +199,7 @@ class DatasetReader:
 #
 def func(queue, args):
     root = Path('datasets', 'open-llm-leaderboard')
-    dtypes = ( # do not reorder!
+    dtypes = (
         AuthorModel,
         CreationDate,
         EvaluationTask,
@@ -238,18 +212,8 @@ def func(queue, args):
 
         path = Path(info.read_text().strip())
         rel = path.relative_to(root)
-        basics = [ x(y) for (x, y) in zip(dtypes, rel.parts) ]
-
-        # Establish the header
-        header = {}
-        for i in basics:
-            header.update(asdict(i))
-
-        # Record the prompts (or not)
-        if args.save_prompts:
-            recorder = UniquePromptRecorder(args.save_prompts, basics[-1])
-        else:
-            recorder = NoOpPromptRecorder()
+        iterable = (asdict(x(y)).items() for (x, y) zip(dtypes, rel.parts))
+        header = dict(it.chain.from_iterable(iterable))
 
         # Read/write the data
         src = target.to_string(path)
@@ -276,7 +240,6 @@ def func(queue, args):
 if __name__ == '__main__':
     arguments = ArgumentParser()
     arguments.add_argument('--index-path', type=Path)
-    arguments.add_argument('--save-prompts', type=Path)
     arguments.add_argument('--backoff', type=float, default=15)
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
