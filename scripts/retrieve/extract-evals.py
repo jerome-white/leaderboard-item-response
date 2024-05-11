@@ -194,8 +194,20 @@ class DatasetReader:
 #
 #
 #
+def walk(path, suffix):
+    for i in path.rglob('*.info'):
+        target = i.with_suffix(suffix)
+        if target.exists():
+            checksum = FileChecksum(target)
+            if checksum:
+                Logger.warning(f'Skipping {i}')
+                continue
+
+        yield i
+
 def func(queue, args):
     root = Path('datasets', 'open-llm-leaderboard')
+    suffix = '.csv.gz'
     dtypes = (
         AuthorModel,
         CreationDate,
@@ -205,29 +217,32 @@ def func(queue, args):
     reader = DatasetReader(Backoff(args.backoff, 0.1))
 
     while True:
-        info = queue.get()
+        corpus = queue.get()
+        Logger.critical(corpus)
 
-        path = Path(info.read_text().strip())
-        rel = path.relative_to(root)
-        iterable = (asdict(x(y)).items() for (x, y) zip(dtypes, rel.parts))
-        header = dict(it.chain.from_iterable(iterable))
+        for i in walk(corpus, suffix):
+            path = Path(i.read_text().strip())
+            Logger.info('%s %s', i, path)
 
-        # Read/write the data
-        src = target.to_string(path)
-        dst = info.with_suffix('.csv.gz')
+            rel = path.relative_to(root)
+            header = dict(it.chain.from_iterable(
+                asdict(x(y)).items() for (x, y) in zip(dtypes, rel.parts)
+            ))
 
-        Logger.info('%s %s', info, path)
-        try:
-            records = reader.read(src, header, recorder)
-            df = pd.DataFrame.from_records(records)
+            # Read/write the data
+            src = target.to_string(path)
+            try:
+                records = reader.read(src, header)
+                df = pd.DataFrame.from_records(records)
+            except Exception as err:
+                Logger.error('%s: %s (%s)', path, err, type(err).__name__)
+                continue
+
+            dst = i.with_suffix(suffix)
             df.to_csv(dst, index=False, compression='gzip')
-        except Exception as err:
-            Logger.critical('%s: %s (%s)', path, err, type(err).__name__)
-
-        # Checksum the write
-        if dst.exists():
-            checksum = FileChecksum(dst)
-            checksum.write()
+            if dst.exists():
+                checksum = FileChecksum(dst)
+                checksum.write()
 
         queue.task_done()
 
@@ -248,12 +263,7 @@ if __name__ == '__main__':
     )
 
     with Pool(args.workers, func, initargs):
-        for i in args.index_path.rglob('*.info'):
-            target = i.with_suffix('.csv.gz')
-            if target.exists():
-                checksum = FileChecksum(target)
-                if checksum:
-                    Logger.warning(f'Skipping {i}')
-                    continue
+        for i in args.index.iterdir():
+            assert i.is_dir()
             queue.put(i)
         queue.join()
