@@ -263,7 +263,7 @@ if __name__ == '__main__':
     )
 
     with Pool(args.workers, func, initargs):
-        for i in args.index.iterdir():
+        for i in args.index_path.iterdir():
             assert i.is_dir()
             queue.put(i)
         queue.join()
