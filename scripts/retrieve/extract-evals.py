@@ -111,9 +111,8 @@ class AuthorModel:
 class DatasetIterator:
     _digest_size = 16
 
-    def __init__(self, df, recorder):
+    def __init__(self, df):
         self.df = df
-        self.record = recorder
         self.to_float = FloatAdapter()
 
     def __iter__(self):
@@ -121,7 +120,6 @@ class DatasetIterator:
             instruction = i.full_prompt.encode()
             message = blake2b(instruction, digest_size=self._digest_size)
             prompt = message.hexdigest()
-            self.record(prompt, i.full_prompt)
 
             for (m, v) in self.metrics(i):
                 try:
@@ -181,14 +179,14 @@ class DatasetReader:
 
         raise LookupError(target)
 
-    def read(self, target, header, recorder):
+    def read(self, target, header):
         df = self.get(target)
         if 'metrics' in df.columns:
             iterator = NestedDatasetIterator
         else:
             iterator = ExplicitDatasetIterator
 
-        for i in iterator(df, recorder):
+        for i in iterator(df):
             record = dict(header)
             record.update(i)
 
