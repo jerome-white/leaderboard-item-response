@@ -200,7 +200,7 @@ def walk(path, suffix):
         if target.exists():
             checksum = FileChecksum(target)
             if checksum:
-                Logger.warning(f'Skipping {i}')
+                Logger.debug(f'Skipping {i}')
                 continue
 
         yield i
