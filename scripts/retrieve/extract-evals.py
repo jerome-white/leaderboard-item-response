@@ -16,7 +16,10 @@ from huggingface_hub.utils import HfHubHTTPError
 from mylib import (
     Logger,
     Backoff,
+    AuthorModel,
     FileChecksum,
+    CreationDate,
+    EvaluationTask,
     DatasetPathHandler,
     hf_datetime,
 )
