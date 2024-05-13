@@ -69,3 +69,10 @@ class AuthorModel:
         else:
             self.author = name[lhs:_rhs]
         self.model = None if rhs == _rhs else name[rhs:]
+
+    def to_path(self):
+        path = Path(self.author)
+        if self.model:
+            path = path.joinpath(self.model)
+
+        return path

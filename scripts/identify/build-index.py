@@ -22,7 +22,7 @@ def group(fp):
 
         (details, *_) = path.relative_to(hf_root).parts
         am = AuthorModel(details)
-        key = DataGroup(Path(am.author, am.model))
+        key = DataGroup(am.to_path())
 
         db[key].add(path)
 
