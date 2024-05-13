@@ -1,10 +1,12 @@
 import string
+import functools as ft
 from pathlib import Path
 from datetime import datetime
 from dataclasses import dataclass
 
 from .date_utils import hf_datetime
 
+@ft.cache
 def _clean(name, delimiter='_'):
     letters = []
     for n in name:
