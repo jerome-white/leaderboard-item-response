@@ -52,61 +52,6 @@ class FloatAdapter:
     def to_bool(self, value):
         return self.to_float(self.btype.validate_python(value))
 
-@dataclass
-class CreationDate:
-    date: datetime
-
-    def __post_init__(self):
-        self.date = hf_datetime(self.date)
-
-@dataclass
-class EvaluationTask:
-    task: str
-    category: str
-
-    def __init__(self, info):
-        (_, name, _) = info.split('|')
-        parts = name.split('_', maxsplit=1)
-        n = len(parts)
-        assert 0 < n <= 2
-
-        self.task = parts[0]
-        self.category = parts[1] if n > 1 else ''
-
-    def to_path(self):
-        args = map(clean, (self.task, self.category))
-        return Path(*args)
-
-@dataclass
-class AuthorModel:
-    author: str
-    model: str
-
-    def __init__(self, name):
-        # parse the values
-        (lhs, rhs) = map(name.find, ('_', '__'))
-        if lhs < 0:
-            raise ValueError(f'Cannot parse name {name}')
-        (_lhs, _rhs) = (lhs, rhs)
-
-        # calculate the bounds
-        if lhs == rhs:
-            rhs += 2
-        elif rhs < 0:
-            lhs += 1
-        else:
-            lhs += 1
-            rhs += 2
-
-        # extract the names
-        if lhs == _lhs:
-            self.author = None
-        elif rhs < 0:
-            self.author = name[lhs:]
-        else:
-            self.author = name[lhs:_rhs]
-        self.model = None if rhs == _rhs else name[rhs:]
-
 #
 #
 #
@@ -197,16 +142,16 @@ class DatasetReader:
 #
 #
 #
-def walk(path, suffix):
-    for i in path.rglob('*.info'):
-        target = i.with_suffix(suffix)
-        if target.exists():
-            checksum = FileChecksum(target)
-            if checksum:
-                Logger.debug(f'Skipping {i}')
-                continue
+def walk(info, suffix):
+    target = info.with_suffix(suffix)
+    if target.exists():
+        checksum = FileChecksum(target)
+        if checksum:
+            raise PermissionError(info)
 
-        yield i
+    with info.open() as fp:
+        for i in fp:
+            yield Path(i.strip())
 
 def func(queue, args):
     root = Path('datasets', 'open-llm-leaderboard')
@@ -220,32 +165,33 @@ def func(queue, args):
     reader = DatasetReader(Backoff(args.backoff, 0.1))
 
     while True:
-        corpus = queue.get()
-        Logger.critical(corpus)
+        info = queue.get()
+        Logger.critical(info.with_suffix(''))
 
-        for i in walk(corpus, suffix):
-            path = Path(i.read_text().strip())
-            Logger.info('%s %s', i, path)
+        frames = []
+        try:
+            for i in walk(info, suffix):
+                Logger.info(i)
 
-            rel = path.relative_to(root)
-            header = dict(it.chain.from_iterable(
-                asdict(x(y)).items() for (x, y) in zip(dtypes, rel.parts)
-            ))
+                rel = i.relative_to(root)
+                header = dict(it.chain.from_iterable(
+                    asdict(x(y)).items() for (x, y) in zip(dtypes, rel.parts)
+                ))
 
-            # Read/write the data
-            src = target.to_string(path)
-            try:
-                records = reader.read(src, header)
+                source = target.to_string(i)
+                records = reader.read(source, header)
                 df = pd.DataFrame.from_records(records)
-            except Exception as err:
-                Logger.error('%s: %s (%s)', path, err, type(err).__name__)
-                continue
+                frames.append(df)
+        except Exception as err:
+            Logger.error('%s (%s)', err, type(err).__name__)
+            frames.clear()
 
-            dst = i.with_suffix(suffix)
-            df.to_csv(dst, index=False, compression='gzip')
-            if dst.exists():
-                checksum = FileChecksum(dst)
-                checksum.write()
+        if frames:
+            destination = info.with_suffix(suffix)
+            df = pd.concat(frames)
+            df.to_csv(destination, index=False, compression='gzip')
+            checksum = FileChecksum(destination)
+            checksum.write()
 
         queue.task_done()
 
@@ -266,7 +212,6 @@ if __name__ == '__main__':
     )
 
     with Pool(args.workers, func, initargs):
-        for i in args.index_path.iterdir():
-            assert i.is_dir()
+        for i in args.index_path.rglob('*.info'):
             queue.put(i)
         queue.join()
