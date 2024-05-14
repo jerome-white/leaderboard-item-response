@@ -2,24 +2,28 @@ import sys
 import csv
 from pathlib import Path
 from argparse import ArgumentParser
-from multiprocessing import Pool
+from multiprocessing import Pool, Queue
+
+import pandas as pd
 
 from mylib import Logger, FileChecksum
 
-def load(path):
-    for i in path.rglob('*.csv.gz'):
-        checksum = FileChecksum(i)
-        if not checksum:
-            Logger.error(i)
-            continue
+def func(incoming, outgoing):
+    while True:
+        path = incoming.get()
+        Logger.info(path)
 
-        yield pd.read_csv(i, compression='gzip')
+        for i in path.rglob('*.csv.gz'):
+            checksum = FileChecksum(i)
+            if not checksum:
+                Logger.error(i)
+                continue
+            df = (pd
+                  .read_csv(i, compression='gzip')
+                  .to_dict(orient='records'))
+            outgoing.put(df)
 
-def func(args):
-    Logger.info(args)
-    return (pd
-            .concat(load(args))
-            .to_dict(orient='records'))
+        outgoing.put(None)
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
@@ -27,11 +31,26 @@ if __name__ == '__main__':
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
-    with Pool(args.workers) as pool:
+    incoming = Queue()
+    outgoing = Queue()
+    initargs = (
+        outgoing,
+        incoming,
+    )
+
+    with Pool(args.workers, func, initargs):
+        jobs = 0
+        for i in args.index_path.iterdir():
+            outgoing.put(i)
+            jobs += 1
+
         writer = None
-        for i in pool.imap_unordered(func, args.index_path.iterdir()):
-            if i:
+        while jobs:
+            rows = incoming.get()
+            if rows is None:
+                jobs -= 1
+            elif rows:
                 if writer is None:
-                    writer = csv.DictWriter(sys.stdout, fieldnames=i[0])
+                    writer = csv.DictWriter(sys.stdout, fieldnames=rows[0])
                     writer.writeheader()
-                writer.writerows(i)
+                writer.writerows(rows)
