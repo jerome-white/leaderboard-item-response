@@ -1,47 +1,56 @@
+import string
+import functools as ft
 from pathlib import Path
 from datetime import datetime
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 
-_evaluations = {
-    'arc': 'ARC',
-    'gsm8k': 'GSM8K',
-    'hellaswag': 'HellaSwag',
-    'winogrande': 'Winogrande',
-    'hendrycksTest': 'MMLU',
-    'truthfulqa-mc': 'TruthfulQA',
-}
+from .date_utils import hf_datetime
 
-@dataclass(frozen=True)
+@ft.cache
+def _clean(name, delimiter='_'):
+    letters = []
+    for n in name:
+        l = delimiter if n in string.punctuation else n
+        letters.append(l)
+
+    return ''.join(letters)
+
+@dataclass
+class CreationDate:
+    date: datetime
+
+    def __post_init__(self):
+        self.date = hf_datetime(self.date)
+
+@dataclass
+class EvaluationTask:
+    task: str
+    category: str
+
+    def __init__(self, info):
+        (_, name, _) = info.split('|')
+        parts = name.split('_', maxsplit=1)
+        n = len(parts)
+        assert 0 < n <= 2
+
+        self.task = parts[0]
+        self.category = parts[1] if n > 1 else ''
+
+    def to_path(self):
+        args = map(_clean, (self.task, self.category))
+        return Path(*args)
+
+@dataclass
 class AuthorModel:
     author: str
     model: str
 
-@dataclass(frozen=True)
-class TaskCategory:
-    task: str
-    category: str
-
-#
-#
-#
-@dataclass
-class EvaluationSet:
-    uri: str
-    evaluation: str
-
-    def __str__(self):
-        path = Path(self.uri, self.evaluation)
-        return str(path)
-
-    def get_author_model(self):
-        uri = Path(self.uri)
-
+    def __init__(self, name):
         # parse the values
-        (lhs, rhs) = map(uri.name.find, ('_', '__'))
-        (_lhs, _rhs) = (lhs, rhs)
-
+        (lhs, rhs) = map(name.find, ('_', '__'))
         if lhs < 0:
-            raise ValueError(f'Cannot parse name {self.uri}')
+            raise ValueError(f'Cannot parse name {name}')
+        (_lhs, _rhs) = (lhs, rhs)
 
         # calculate the bounds
         if lhs == rhs:
@@ -54,46 +63,18 @@ class EvaluationSet:
 
         # extract the names
         if lhs == _lhs:
-            author = None
+            self.author = None
         elif rhs < 0:
-            author = uri.name[lhs:]
+            self.author = name[lhs:]
         else:
-            author = uri.name[lhs:_rhs]
-        model = None if rhs == _rhs else uri.name[rhs:]
+            self.author = name[lhs:_rhs]
+        self.model = None if rhs == _rhs else name[rhs:]
 
-        return AuthorModel(author, model)
+    def to_path(self):
+        assert self.author or self.model
 
-    def get_task_category(self):
-        (lhs, *body, rhs) = self.evaluation.split('_')
-        assert lhs == 'harness', self.evaluation
-        assert rhs.isdecimal(), self.evaluation
+        path = Path(self.author or '_')
+        if self.model:
+            path = path.joinpath(self.model)
 
-        name = body.pop(0)
-        task = ' '.join(body)
-        category = _evaluations.get(name, name)
-
-        return TaskCategory(task, category)
-
-@dataclass(frozen=True)
-class EvaluationInfo(TaskCategory, AuthorModel):
-    @classmethod
-    def from_evaluation_set(cls, ev_set: EvaluationSet):
-        kwargs = {}
-        methods = (
-            ev_set.get_author_model,
-            ev_set.get_task_category,
-        )
-        for i in methods:
-            kwargs.update(asdict(i()))
-
-        return cls(*kwargs)
-
-@dataclass(frozen=True)
-class LeaderboardValue:
-    metric: str
-    value: float
-
-@dataclass(frozen=True)
-class LeaderboardResult(EvaluationInfo, LeaderboardValue):
-    date: datetime
-    prompt: str
+        return path
