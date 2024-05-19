@@ -18,10 +18,10 @@ def func(incoming, outgoing):
             if not checksum:
                 Logger.error(i)
                 continue
-            df = (pd
-                  .read_csv(i, compression='gzip')
-                  .to_dict(orient='records'))
-            outgoing.put(df)
+            records = (pd
+                       .read_csv(i, compression='gzip')
+                       .to_dict(orient='records'))
+            outgoing.put(records)
 
         outgoing.put(None)
 
