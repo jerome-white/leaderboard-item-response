@@ -88,13 +88,12 @@ class SubmissionReader:
 
     def __call__(self, df):
         for i in df.itertuples(index=False):
-            view = i._asdict()
-            path = Path(view.pop('path'))
+            path = Path(i.path)
             Logger.info(path)
 
             try:
                 for r in self.results(path):
-                    record = dict(view)
+                    record = i._asdict()
                     record.update(asdict(r))
                     yield record
             except PermissionError as err:
