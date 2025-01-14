@@ -73,6 +73,7 @@ class HfFileReader:
             except GatedRepoError as err:
                 if attempted:
                     raise PermissionError(target) from err
+                Logging.warning(url)
                 self.ask(target)
                 attempted = True
 
