@@ -66,7 +66,7 @@ def func(incoming, outgoing, args):
         results.clear()
         for i in fs.walk(dataset):
             key = repr(i)
-            if key not in results or results[key] > i:
+            if key not in results or i < results[key]:
                 results[key] = i
 
         outgoing.put(list(map(asdict, results.values())))
