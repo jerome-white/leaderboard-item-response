@@ -10,6 +10,7 @@ from multiprocessing import Pool, JoinableQueue
 import fsspec
 import requests
 import pandas as pd
+from requests import HTTPError
 from huggingface_hub.utils import GatedRepoError, build_hf_headers
 
 from mylib import Logger, DatasetPathHandler
@@ -62,20 +63,23 @@ class HfFileReader:
 
     def __call__(self, target):
         url = self.path.to_string(target)
-        attempted = False
-
-        while True:
+        for i in it.count():
             try:
                 with fsspec.open(url) as fp:
                     for line in fp:
                         yield json.loads(line)
                 break
             except GatedRepoError as err:
-                if attempted:
+                if i:
                     raise PermissionError(target) from err
-                Logging.warning(url)
+                Logger.error(url)
+            except Exception as err:
+                raise ConnectionError(target) from err
+
+            try:
                 self.ask(target)
-                attempted = True
+            except HTTPError as err:
+                raise PermissionError(target) from err
 
 class SubmissionReader:
     _metrics = (
@@ -91,13 +95,10 @@ class SubmissionReader:
             path = Path(i.path)
             Logger.info(path)
 
-            try:
-                for r in self.results(path):
-                    record = i._asdict()
-                    record.update(asdict(r))
-                    yield record
-            except PermissionError as err:
-                Logger.critical(err)
+            for r in self.results(path):
+                record = i._asdict()
+                record.update(asdict(r))
+                yield record
 
     def results(self, path):
         for line in self.reader(path):
