@@ -1,11 +1,11 @@
 import sys
-import csv
 import json
+import itertools as it
 from pathlib import Path
 from argparse import ArgumentParser
 from dataclasses import dataclass, fields, asdict, astuple
 from urllib.parse import ParseResult, urlunparse
-from multiprocessing import Pool, JoinableQueue
+from multiprocessing import Pool
 
 import fsspec
 import requests
@@ -110,23 +110,37 @@ class SubmissionReader:
 #
 #
 #
-def func(queue, args):
+def func(args):
+    (key, group, output) = args
+
+    out = (output
+           .joinpath(*astuple(key))
+           .with_suffix('.csv.gz'))
+    if out.exists():
+        Logger.warning('%s exists', out)
+        return
+
     reader = SubmissionReader()
-
-    while True:
-        (key, group) = queue.get()
-        Logger.warning(key)
-
-        output = (args
-                  .output
-                  .joinpath(*astuple(key))
-                  .with_suffix('.csv.gz'))
-        output.parent.mkdir(parents=True, exist_ok=True)
-
+    try:
         df = pd.DataFrame.from_records(reader(group))
-        df.to_csv(output, index=False, compression='gzip')
+    except (PermissionError, ConnectionError) as err:
+        Logger.critical('%s: %s', type(err), err)
+        return
 
-        queue.task_done()
+    out.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(out, index=False, compression='gzip')
+
+def each(args, fp):
+    by = [ x.name for x in fields(GroupKey) ]
+    df = pd.read_csv(fp, parse_dates=['date'])
+
+    for (i, group) in df.groupby(by, sort=False):
+        key = GroupKey(*i)
+        yield (
+            key,
+            group,
+            args.output,
+        )
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
@@ -134,16 +148,6 @@ if __name__ == '__main__':
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
-    queue = JoinableQueue()
-    initargs = (
-        queue,
-        args,
-    )
-
-    with Pool(args.workers, func, initargs):
-        by = [ x.name for x in fields(GroupKey) ]
-        df = pd.read_csv(sys.stdin, parse_dates=['date'])
-        for (i, g) in df.groupby(by, sort=False):
-            key = GroupKey(*i)
-            queue.put((key, g))
-        queue.task_done()
+    with Pool(args.workers) as pool:
+        for _ in pool.imap_unordered(func, each(args, sys.stdin)):
+            pass
