@@ -1,6 +1,9 @@
 import sys
 import json
 import itertools as it
+import functools as ft
+import statistics as st
+from typing import SupportsFloat
 from pathlib import Path
 from argparse import ArgumentParser
 from dataclasses import dataclass, fields, asdict, astuple
@@ -16,18 +19,38 @@ from huggingface_hub.utils import GatedRepoError, build_hf_headers
 from mylib import Logger, DatasetPathHandler
 
 #
+# Types and functions to evaluation scores. Create new `to_float`s to
+# handle special cases.
 #
-#
+@ft.singledispatch
+def to_float(value):
+    raise TypeError('{}: {}'.format(type(value), value))
+
+@to_float.register
+def _(value: SupportsFloat): # most are float, ifeval.prompt_ is bool
+    return float(value)
+
+@to_float.register
+def _(value: list): # ifeval.inst_
+    return st.fmean(value)
+
 @dataclass
 class Result:
     document: str
     metric: str
     score: float
 
+    def __post_init__(self):
+        self.score = to_float(self.score)
+
+#
+#
+#
 @dataclass(frozen=True)
 class GroupKey:
     author: str
     model: str
+
 
 #
 #
