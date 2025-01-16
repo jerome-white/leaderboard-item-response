@@ -14,8 +14,11 @@ class GroupKey:
     category: str
 
     def __post_init__(self):
-        if not self.category:
+        if not self.category == pd.NA:
             self.category = '_'
+
+    def __str__(self):
+        return str(self.to_path())
 
     def to_path(self):
         return Path(*astuple(self))
@@ -30,6 +33,12 @@ class DataIterator:
             yield (key, g)
 
 def func(queue, args):
+    items = [
+        'author',
+        'model',
+        'doc',
+        'score',
+    ]
     reader = DataIterator()
 
     while True:
@@ -38,11 +47,23 @@ def func(queue, args):
 
         df = pd.read_csv(path, compression='gzip')
         for (k, g) in reader(df):
-            args.target.joinpath(k.to_path())
+            metrics = g['metric']
+            if metrics.nunique() > 1:
+                Logger.warning(
+                    'Skipping %s: multiple scoring (%s)',
+                    k,
+                    ','.join(map(str, metrics.unique())),
+                )
+                continue
 
-def each(args):
-    for i in args.source.rglob('*.csv.gz'):
-        yield (i, args.target)
+            view = g.filter(items=items)
+
+            out = args.target.joinpath(key.to_path())
+            out.mkdir(parents=True, exist_ok=True)
+            with NamedTemporaryFile(mode='w', dir=out, delete=False) as fp:
+                view.to_csv(fp, index=False)
+
+        queue.task_done()
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
