@@ -1,4 +1,3 @@
-import uuid
 from pathlib import Path
 from argparse import ArgumentParser
 from multiprocessing import Pool
@@ -17,9 +16,8 @@ def func(args):
     Logger.info(path)
 
     (*_, name, category) = path.parts
-    fname = uuid.uuid4()
     dst = (target
-           .joinpath(name, category, str(fname))
+           .joinpath(name, category, 'data')
            .with_suffix('.csv'))
     dst.parent.mkdir(parents=True)
 
