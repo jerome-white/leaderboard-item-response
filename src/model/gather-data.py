@@ -36,7 +36,7 @@ def func(queue, args):
     items = [
         'author',
         'model',
-        'doc',
+        'document',
         'score',
     ]
     reader = DataIterator()
