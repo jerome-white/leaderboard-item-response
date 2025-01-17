@@ -26,7 +26,7 @@ def func(path):
         Logger.error(path)
         return
 
-    (i, j) = (df[x] for x in ('document', 'submission'))
+    (i, j) = (df[x] for x in ('document', 'author_model_id'))
     stan = {
         'I': i.max(),           # questions
         'J': j.max(),           # persons
