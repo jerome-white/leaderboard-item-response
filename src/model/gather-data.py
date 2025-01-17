@@ -58,7 +58,7 @@ def func(queue, args):
 
             view = g.filter(items=items)
 
-            out = args.target.joinpath(key.to_path())
+            out = args.target.joinpath(k.to_path())
             out.mkdir(parents=True, exist_ok=True)
             with NamedTemporaryFile(mode='w', dir=out, delete=False) as fp:
                 view.to_csv(fp, index=False)
