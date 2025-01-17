@@ -20,13 +20,13 @@ def func(args):
     fname = uuid.uuid4()
     dst = (target
            .joinpath(name, category, str(fname))
-           .with_suffix('.csv.gz'))
-    dst.parent.mkdir()
+           .with_suffix('.csv'))
+    dst.parent.mkdir(parents=True)
 
     df = (pd
           .concat(map(pd.read_csv, path.iterdir()))
-          .assign(submission=submission)
-    df.to_csv(dst, index=False, compression='gzip')
+          .assign(submission=submission))
+    df.to_csv(dst, index=False)
 
 def each(args):
     for i in args.source.iterdir():
