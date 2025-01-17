@@ -33,6 +33,6 @@ if __name__ == '__main__':
     args = arguments.parse_args()
 
     with Pool(args.workers) as pool:
-        iterable = args.source.rglob('.csv.gz')
+        iterable = args.source.rglob('*.csv')
         for _ in pool.imap_unordered(func, iterable):
             pass
