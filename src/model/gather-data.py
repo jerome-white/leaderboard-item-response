@@ -49,10 +49,10 @@ def func(queue, args):
         for (k, g) in reader(df):
             metrics = g['metric']
             if metrics.nunique() > 1:
-                Logger.warning(
-                    'Skipping %s: multiple scoring (%s)',
+                Logger.error(
+                    '%s -> multiple scoring: %s',
                     k,
-                    ','.join(map(str, metrics.unique())),
+                    ' ,'.join(map(str, metrics.unique())),
                 )
                 continue
 
