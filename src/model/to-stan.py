@@ -20,7 +20,11 @@ class MyEncoder(json.JSONEncoder):
 def func(path):
     Logger.info(path)
 
-    df = pd.read_csv(path, compression='gzip')
+    df = pd.read_csv(path)
+    score = df['score']
+    if not score.apply(float.is_integer).all():
+        Logger.error(path)
+        return
 
     (i, j) = (df[x] for x in ('doc', 'submission'))
     stan = {
