@@ -29,7 +29,6 @@ def func(path):
 if __name__ == '__main__':
     arguments = ArgumentParser()
     arguments.add_argument('--source', type=Path)
-    arguments.add_argument('--target', type=Path)
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
