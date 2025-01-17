@@ -14,7 +14,7 @@ class GroupKey:
     category: str
 
     def __post_init__(self):
-        if not self.category == pd.NA:
+        if pd.isnull(self.category):
             self.category = '_'
 
     def __str__(self):
