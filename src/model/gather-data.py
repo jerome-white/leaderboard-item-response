@@ -1,6 +1,6 @@
-import sys
 from pathlib import Path
 from argparse import ArgumentParser
+from tempfile import NamedTemporaryFile
 from dataclasses import dataclass, fields, astuple
 from multiprocessing import Pool, JoinableQueue
 
