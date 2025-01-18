@@ -20,7 +20,7 @@ class MyEncoder(json.JSONEncoder):
 def func(path):
     Logger.info(path)
 
-    df = pd.read_csv(path)
+    df = pd.read_csv(path, memory_map=True)
     score = df['score']
     if not score.apply(float.is_integer).all():
         Logger.error(path)
