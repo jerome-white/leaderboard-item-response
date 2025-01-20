@@ -20,7 +20,7 @@ def scanf(path):
             reader = csv.DictReader(fp)
             for row in reader:
                 am = AuthorModel(*map(row.get, keys))
-                author_model_id = db.setdefault(am, len(db))
+                author_model_id = db.setdefault(am, len(db) + 1)
                 yield dict(row, author_model_id=author_model_id)
 
 def func(queue, target):

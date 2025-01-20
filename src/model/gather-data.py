@@ -56,7 +56,9 @@ def func(queue, args):
                 )
                 continue
 
-            view = g.filter(items=items)
+            view = (g
+                    .filter(items=items)
+                    .assign(document_id=lambda x: x['document'] + 1)) # XXX
 
             out = args.target.joinpath(k.to_path())
             out.mkdir(parents=True, exist_ok=True)
