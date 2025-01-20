@@ -20,14 +20,14 @@ class MyEncoder(json.JSONEncoder):
 def func(path):
     Logger.info(path)
 
-    df = pd.read_csv(path)
+    df = pd.read_csv(path, memory_map=True)
     score = df['score']
     if not score.apply(float.is_integer).all():
         Logger.error(path)
         return
 
     (i, j) = (df[x] for x in ('document', 'author_model_id'))
-    stan = {
+    data = {
         'I': i.max(),           # questions
         'J': j.max(),           # persons
         'N': len(df),           # observations
@@ -35,10 +35,11 @@ def func(path):
         'p_j': j,               # person for n
         'y': score.astype(int), # correctness for n
     }
+    data = json.dumps(data, cls=MyEncoder)
 
     out = path.with_suffix('.json')
     with out.open('w') as fp:
-        print(json.dumps(stan, indent=2, cls=MyEncoder), file=fp)
+        print(data, file=fp)
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
