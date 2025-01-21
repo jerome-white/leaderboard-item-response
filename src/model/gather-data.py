@@ -2,7 +2,7 @@ from pathlib import Path
 from argparse import ArgumentParser
 from tempfile import NamedTemporaryFile
 from dataclasses import dataclass, fields, astuple
-from multiprocessing import Pool, JoinableQueue
+from multiprocessing import Pool
 
 import pandas as pd
 
@@ -32,7 +32,7 @@ class DataIterator:
             key = GroupKey(*i)
             yield (key, g)
 
-def func(queue, args):
+def func(incoming, outgoing, target):
     items = [
         'author',
         'model',
@@ -42,7 +42,7 @@ def func(queue, args):
     reader = DataIterator()
 
     while True:
-        path = queue.get()
+        path = incoming.get()
         Logger.info(path)
 
         df = pd.read_csv(path, compression='gzip')
@@ -60,12 +60,12 @@ def func(queue, args):
                     .filter(items=items)
                     .assign(document_id=lambda x: x['document'] + 1)) # XXX
 
-            out = args.target.joinpath(k.to_path())
+            out = target.joinpath(k.to_path())
             out.mkdir(parents=True, exist_ok=True)
             with NamedTemporaryFile(mode='w', dir=out, delete=False) as fp:
                 view.to_csv(fp, index=False)
 
-        queue.task_done()
+        outgoing.put(fp.name)
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
@@ -74,13 +74,20 @@ if __name__ == '__main__':
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
-    queue = JoinableQueue()
+    incoming = Queue()
+    outgoing = Queue()
     initargs = (
-        queue,
-        args,
+        outgoing,
+        incoming,
+        args.target,
     )
 
     with Pool(args.workers, func, initargs):
+        jobs = 0
         for i in args.source.rglob('*.csv.gz'):
-            queue.put(i)
-        queue.join()
+            outgoing.put(i)
+            jobs += 1
+
+        for _ in range(jobs):
+            output = incoming.get()
+            print(output)
