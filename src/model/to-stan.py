@@ -2,31 +2,30 @@ import json
 import functools as ft
 from pathlib import Path
 from argparse import ArgumentParser
-from multiprocessing import Pool
 
 import pandas as pd
 
-from mylib import Logger
-
 class MyEncoder(json.JSONEncoder):
     @ft.singledispatchmethod
-    def default(self, obj):
-        return super().default(obj)
+    def default(self, o):
+        return super().default(o)
 
     @default.register
-    def _(self, obj: pd.Series):
-        return obj.to_list()
+    def _(self, o: pd.Series):
+        return o.to_list()
 
-def func(path):
-    Logger.info(path)
+if __name__ == '__main__':
+    arguments = ArgumentParser()
+    arguments.add_argument('--data-file', type=Path)
+    args = arguments.parse_args()
 
-    df = pd.read_csv(path, memory_map=True)
+    df = pd.read_csv(args.data_file, memory_map=True)
+
     score = df['score']
     if not score.apply(float.is_integer).all():
-        Logger.error(path)
-        return
+        raise TypeError(f'[ {args.data} ] Non-integer scores')
 
-    (i, j) = (df[x] for x in ('document', 'author_model_id'))
+    (i, j) = (df[x] for x in ('document_id', 'author_model_id'))
     data = {
         'I': i.max(),           # questions
         'J': j.max(),           # persons
@@ -35,19 +34,5 @@ def func(path):
         'p_j': j,               # person for n
         'y': score.astype(int), # correctness for n
     }
-    data = json.dumps(data, cls=MyEncoder)
 
-    out = path.with_suffix('.json')
-    with out.open('w') as fp:
-        print(data, file=fp)
-
-if __name__ == '__main__':
-    arguments = ArgumentParser()
-    arguments.add_argument('--source', type=Path)
-    arguments.add_argument('--workers', type=int)
-    args = arguments.parse_args()
-
-    with Pool(args.workers) as pool:
-        iterable = args.source.rglob('*.csv')
-        for _ in pool.imap_unordered(func, iterable):
-            pass
+    print(json.dumps(data, cls=MyEncoder))
