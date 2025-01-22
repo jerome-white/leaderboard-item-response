@@ -16,7 +16,7 @@ import pandas as pd
 from requests import HTTPError
 from huggingface_hub.utils import GatedRepoError, build_hf_headers
 
-from mylib import Logger, DatasetPathHandler
+from mylib import Logger, DatasetPathHandler, SubmissionInfo
 
 #
 # Types and functions to evaluation scores. Create new `to_float`s to
@@ -47,10 +47,29 @@ class Result:
 #
 #
 @dataclass(frozen=True)
-class GroupKey:
-    author: str
-    model: str
+class MySubmissionInfo(SubmissionInfo):
+    def __post_init__(self):
+        if not self.subject:
+            self.subject = '_'
 
+    def to_path(self):
+        return Path(self.benchmark, self.subject, self.author, self.model)
+
+#
+#
+#
+@dataclass
+class QuestionBank:
+    name: Path
+    question: dict
+
+    def dump(self, dst):
+        output = dst.joinpath(self.name).with_suffix('.json')
+        if not output.exists():
+            output.parent.mkdir(parents=True, exist_ok=True)
+            data = json.dumps(self.question, indent=2)
+            with output.open('w') as fp:
+                print(data, file=fp)
 
 #
 #
@@ -105,72 +124,75 @@ class HfFileReader:
                 raise PermissionError(target) from err
 
 class SubmissionReader:
+    _document_keys = (
+        'doc',
+        'doc_id',
+    )
     _metrics = (
         'acc',
         'match',
     )
 
     def __init__(self):
-        self.reader = HfFileReader()
+        self.documents = {}
 
-    def __call__(self, df):
-        for i in df.itertuples(index=False):
-            path = Path(i.path)
-            Logger.info(path)
-
-            for r in self.results(path):
-                record = i._asdict()
-                record.update(asdict(r))
-                yield record
+    def __call__(self, submission):
+        for r in self.results(submission['path']):
+            record = dict(submission)
+            record.update(asdict(r))
+            yield record
 
     def results(self, path):
         for line in self.reader(path):
-            document = line['doc_id']
+            document = line['doc_hash']
+
             for (metric, score) in line.items():
                 if any(metric.find(x) >= 0 for x in self._metrics):
                     yield Result(document, metric, score)
 
+            self.documents[document] = {
+                x: line[x] for x in self._document_keys
+            }
+
 #
 #
 #
-def func(args):
-    (key, group, output) = args
+def func(incoming, outgoing, args):
+    hf_reader = HfFileReader()
+    keys = [ x.name for x in fields(MySubmissionInfo) ]
 
-    out = (output
-           .joinpath(*astuple(key))
-           .with_suffix('.csv.gz'))
-    if out.exists():
-        Logger.warning('%s exists', out)
-        return
+    while True:
+        submission = incoming.get()
+        Logger.info(submission['path'])
 
-    reader = SubmissionReader()
-    try:
-        df = pd.DataFrame.from_records(reader(group))
-    except (PermissionError, ConnectionError) as err:
-        Logger.critical('%s: %s', type(err), err)
-        return
+        reader = SubmissionReader(hf_reader)
+        try:
+            df = pd.DataFrame.from_records(reader(submission))
+        except (PermissionError, ConnectionError) as err:
+            Logger.critical('%s: %s', type(err), err)
+            return
 
-    out.parent.mkdir(parents=True, exist_ok=True)
-    df.to_csv(out, index=False, compression='gzip')
+        info = MySubmissionInfo(*map(submission.get, keys))
+        out = (args
+               .output
+               .joinpath(info.to_path(), args.target)
+               .with_suffix('.csv.gz'))
+        out.parent.mkdir(parents=True, exist_ok=True)
+        df.to_csv(out, index=False, compression='gzip')
 
-def each(args, fp):
-    by = [ x.name for x in fields(GroupKey) ]
-    df = pd.read_csv(fp, parse_dates=['date'])
-
-    for (i, group) in df.groupby(by, sort=False):
-        key = GroupKey(*i)
-        yield (
-            key,
-            group,
-            args.output,
-        )
+        name = Path(info.benchmark, info.subject)
+        return QuestionBank(name, reader.documents)
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
     arguments.add_argument('--output', type=Path)
+    arguments.add_argument('--question-bank', type=Path)
+    arguments.add_argument('--target', default='data')
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
     with Pool(args.workers) as pool:
-        for _ in pool.imap_unordered(func, each(args, sys.stdin)):
-            pass
+        reader = csv.DictReader(sys.stdin)
+        for i in pool.imap_unordered(func, reader):
+            if i is not None:
+                i.dump(args.question_bank)
