@@ -13,8 +13,8 @@ from mylib import Logger
 class Sample:
     author: str
     model: str
-    name: str
-    category: str
+    benchmark: str
+    subject: str
 
 @dataclass
 class Submission:
@@ -30,13 +30,13 @@ class Submission:
         (*_, info, name) = self.path.parts
         (author, model) = info.split('__')
         path = Path(*name.split('_'))
-        (name, *category) = (path
-                             .relative_to(self._root)
-                             .parent
-                             .parts)
-        category = '_'.join(category)
+        (benchmark, *subject) = (path
+                                 .relative_to(self._root)
+                                 .parent
+                                 .parts)
+        subject = '_'.join(subject)
 
-        return Sample(author, model, name, category)
+        return Sample(author, model, benchmark, subject)
 
 def records(fp):
     reader = csv.DictReader(fp)
