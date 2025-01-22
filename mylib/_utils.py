@@ -1,7 +1,15 @@
 import random
 import functools as ft
 from pathlib import Path
+from dataclasses import dataclass
 from urllib.parse import ParseResult, urlunparse
+
+@dataclass(frozen=True)
+class SubmissionInfo:
+    author: str
+    model: str
+    benchmark: str
+    subject: str
 
 class DatasetPathHandler:
     _netloc = 'datasets'

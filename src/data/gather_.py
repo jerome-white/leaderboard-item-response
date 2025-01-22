@@ -7,14 +7,7 @@ from dataclasses import dataclass, asdict, fields
 
 import pandas as pd
 
-from mylib import Logger
-
-@dataclass
-class Sample:
-    author: str
-    model: str
-    benchmark: str
-    subject: str
+from mylib import Logger, SubmissionInfo
 
 @dataclass
 class Submission:
@@ -36,7 +29,7 @@ class Submission:
                                  .parts)
         subject = '_'.join(subject)
 
-        return Sample(author, model, benchmark, subject)
+        return SubmissionInfo(author, model, benchmark, subject)
 
 def records(fp):
     reader = csv.DictReader(fp)
