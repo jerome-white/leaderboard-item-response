@@ -57,7 +57,6 @@ def records(fp):
 if __name__ == '__main__':
     arguments = ArgumentParser()
     arguments.add_argument('--output', type=Path)
-    arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
     df = pd.DataFrame.from_records(records(sys.stdin))
