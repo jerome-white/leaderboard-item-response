@@ -178,9 +178,11 @@ def func(incoming, outgoing, args):
             continue
 
         info = MySubmissionInfo(*map(submission.get, keys))
-        out = args.output.joinpath(info.to_path('.csv.gz'))
-        out.parent.mkdir(parents=True, exist_ok=True)
-        df.to_csv(out, index=False, compression='gzip')
+
+        if not df.empty:
+            out = args.output.joinpath(info.to_path('.csv.gz'))
+            out.parent.mkdir(parents=True, exist_ok=True)
+            df.to_csv(out, index=False, compression='gzip')
 
         name = Path(info.benchmark, info.subject)
         outgoing.put(QuestionBank(name, reader.documents))
