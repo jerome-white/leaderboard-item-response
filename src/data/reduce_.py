@@ -2,7 +2,7 @@ import sys
 import csv
 from pathlib import Path
 from argparse import ArgumentParser
-from dataclasses import fields
+from dataclasses import fields, astuple
 from multiprocessing import Pool, Queue
 
 import pandas as pd
@@ -60,6 +60,7 @@ def extract(db, fp):
     reader = csv.DictReader(fp)
     for row in reader:
         (info, date) = parser(row)
+        info = astuple(info)
         if info not in db or db[info] > date:
             yield row
 
@@ -73,7 +74,7 @@ if __name__ == '__main__':
     args = arguments.parse_args()
 
     writer = None
-    for i in extract(dict(scan(args.corpus)), sys.stdin):
+    for i in extract(dict(scan(args)), sys.stdin):
         if writer is None:
             writer = csv.DictWriter(sys.stdout, fieldnames=i)
             writer.writeheader()
