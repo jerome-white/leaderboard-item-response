@@ -4,7 +4,7 @@ from pathlib import Path
 from dataclasses import dataclass
 from urllib.parse import ParseResult, urlunparse
 
-@dataclass(frozen=True)
+@dataclass
 class SubmissionInfo:
     author: str
     model: str
