@@ -2,8 +2,7 @@ import sys
 import csv
 from typing import ClassVar
 from pathlib import Path
-from argparse import ArgumentParser
-from dataclasses import dataclass, asdict, fields
+from dataclasses import dataclass, asdict
 
 import pandas as pd
 
@@ -48,9 +47,5 @@ def records(fp):
         yield rec
 
 if __name__ == '__main__':
-    arguments = ArgumentParser()
-    arguments.add_argument('--output', type=Path)
-    args = arguments.parse_args()
-
     df = pd.DataFrame.from_records(records(sys.stdin))
     df.to_csv(sys.stdout, index=False)
