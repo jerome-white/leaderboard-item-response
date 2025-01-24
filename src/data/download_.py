@@ -1,4 +1,5 @@
 import sys
+import csv
 import json
 import itertools as it
 import functools as ft
@@ -6,9 +7,9 @@ import statistics as st
 from typing import SupportsFloat
 from pathlib import Path
 from argparse import ArgumentParser
-from dataclasses import dataclass, fields, asdict, astuple
+from dataclasses import dataclass, fields, asdict
 from urllib.parse import ParseResult, urlunparse
-from multiprocessing import Pool
+from multiprocessing import Pool, Queue
 
 import fsspec
 import requests
@@ -46,14 +47,15 @@ class Result:
 #
 #
 #
-@dataclass(frozen=True)
+@dataclass
 class MySubmissionInfo(SubmissionInfo):
     def __post_init__(self):
         if not self.subject:
             self.subject = '_'
 
-    def to_path(self):
-        return Path(self.benchmark, self.subject, self.author, self.model)
+    def to_path(self, suffix):
+        name = f'{self.model}{suffix}'
+        return Path(self.benchmark, self.subject, self.author, name)
 
 #
 #
@@ -133,11 +135,13 @@ class SubmissionReader:
         'match',
     )
 
-    def __init__(self):
+    def __init__(self, reader):
+        self.reader = reader
         self.documents = {}
 
     def __call__(self, submission):
-        for r in self.results(submission['path']):
+        path = Path(submission['path'])
+        for r in self.results(path):
             record = dict(submission)
             record.update(asdict(r))
             yield record
@@ -170,29 +174,40 @@ def func(incoming, outgoing, args):
             df = pd.DataFrame.from_records(reader(submission))
         except (PermissionError, ConnectionError) as err:
             Logger.critical('%s: %s', type(err), err)
-            return
+            outgoing.put(None)
+            continue
 
         info = MySubmissionInfo(*map(submission.get, keys))
-        out = (args
-               .output
-               .joinpath(info.to_path(), args.target)
-               .with_suffix('.csv.gz'))
+        out = args.output.joinpath(info.to_path('.csv.gz'))
         out.parent.mkdir(parents=True, exist_ok=True)
         df.to_csv(out, index=False, compression='gzip')
 
         name = Path(info.benchmark, info.subject)
-        return QuestionBank(name, reader.documents)
+        outgoing.put(QuestionBank(name, reader.documents))
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
     arguments.add_argument('--output', type=Path)
     arguments.add_argument('--question-bank', type=Path)
-    arguments.add_argument('--target', default='data')
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
-    with Pool(args.workers) as pool:
+    incoming = Queue()
+    outgoing = Queue()
+    initargs = (
+        outgoing,
+        incoming,
+        args,
+    )
+
+    with Pool(args.workers, func, initargs):
+        jobs = 0
         reader = csv.DictReader(sys.stdin)
-        for i in pool.imap_unordered(func, reader):
-            if i is not None:
-                i.dump(args.question_bank)
+        for row in reader:
+            outgoing.put(row)
+            jobs += 1
+
+        for _ in range(jobs):
+            qb = incoming.get()
+            if qb is not None:
+                qb.dump(args.question_bank)
