@@ -14,7 +14,7 @@ def func(args):
 
     mkey = 'metric'
     df = pd.read_csv(path, compression='gzip', memory_map=True)
-    if metric not in df[mkey]:
+    if metric not in df[mkey].values:
         Logger.error(
             '%s: metric \"%s\" not found (%s)',
             path,
