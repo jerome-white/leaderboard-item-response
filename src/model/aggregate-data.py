@@ -1,8 +1,8 @@
+import sys
+import csv
 from pathlib import Path
 from argparse import ArgumentParser
-from tempfile import NamedTemporaryFile
-from dataclasses import dataclass, fields, astuple
-from multiprocessing import Pool
+from multiprocessing import Pool, Queue
 
 import pandas as pd
 
@@ -63,6 +63,6 @@ if __name__ == '__main__':
         for _ in range(jobs):
             records = incoming.get()
             if writer is None:
-                writer = csv.DictWriter(sys.stdout, fieldnames=i[0])
+                writer = csv.DictWriter(sys.stdout, fieldnames=records[0])
                 writer.writeheader()
             writer.writerows(records)
