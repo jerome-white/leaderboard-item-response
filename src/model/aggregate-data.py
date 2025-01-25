@@ -34,7 +34,7 @@ def func(incoming, outgoing, benchmark):
                    .read_csv(path, compression='gzip', memory_map=True)
                    .groupby('metric', sort=False)
                    .get_group(metric)
-                   .filter(items=rfields())
+                   .filter(items=items)
                    .to_dict(orient='records'))
 
         outgoing.put(records)
@@ -59,8 +59,10 @@ if __name__ == '__main__':
             outgoing.put(i)
             jobs += 1
 
-        writer = csv.DictWriter(sys.stdout, fieldnames=rfields())
-        writer.writeheader()
+        writer = None
         for _ in range(jobs):
             records = incoming.get()
+            if writer is None:
+                writer = csv.DictWriter(sys.stdout, fieldnames=i[0])
+                writer.writeheader()
             writer.writerows(records)
