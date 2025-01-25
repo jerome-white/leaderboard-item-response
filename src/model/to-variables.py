@@ -59,4 +59,4 @@ if __name__ == '__main__':
                 index = int(row[f'{name}_id'])
                 corpus[name][index] = handler(row)
 
-    print(json.dumps(corpus, cls=MyEncoder))
+    print(json.dumps(corpus, indent=2, cls=MyEncoder))
