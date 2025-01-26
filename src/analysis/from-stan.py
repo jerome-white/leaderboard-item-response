@@ -105,17 +105,16 @@ def func(incoming, outgoing, args):
 
         records = []
         for s in samples:
-            for (k, v) in s:
+            for (k, value) in s:
                 if p_index.is_parameter(k):
                     s_param = StanParameter(k)
-                    rec = Record(
+                    records.append(Record(
                         s.chain,
                         s.index,
                         s_param.parameter,
                         p_index[s_param],
-                        v,
-                    )
-                    records.append(rec)
+                        value,
+                    ))
 
         outgoing.put(records)
 
