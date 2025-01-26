@@ -85,11 +85,13 @@ class DataIterator:
             self.windows += 1
 
     def scanf(self):
-        for (i, p) in enumerate(self.root.iterdir()):
+        for p in self.root.iterdir():
+            (*_, chain) = p.stem.split('_')
+            chain = int(chain)
             with p.open() as fp:
                 reader = csv.DictReader(fp)
-                for (j, row) in enumerate(reader):
-                    yield Sample(i, j, row)
+                for idx_data in enumerate(reader):
+                    yield Sample(chain, *idx_data)
 
 #
 #
