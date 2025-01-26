@@ -105,9 +105,9 @@ def func(incoming, outgoing, args):
 
         records = []
         for s in samples:
-            for (k, value) in s:
-                if p_index.is_parameter(k):
-                    s_param = StanParameter(k)
+            for (param, value) in s:
+                if p_index.is_parameter(param):
+                    s_param = StanParameter(param)
                     records.append(Record(
                         s.chain,
                         s.index,
