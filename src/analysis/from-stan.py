@@ -3,129 +3,86 @@ import csv
 import json
 from pathlib import Path
 from argparse import ArgumentParser
-from dataclasses import dataclass, asdict, fields
 from multiprocessing import Pool, Queue
+
+import pandas as pd
 
 from mylib import Logger
 
 #
 #
 #
-@dataclass
-class StanParameter:
-    parameter: str
-    index: int
-
-    def __init__(self, value):
-        (self.parameter, index) = value.split('.')
-        self.index = int(index)
-
-@dataclass
-class _Sample:
-    chain: int
-    index: int
-
-@dataclass
-class Sample(_Sample):
-    data: dict
-
-    def __iter__(self):
-        yield from self.data.items()
-
-@dataclass
-class Record(_Sample):
-    parameter: str
-    source: str
-    value: float
-
-#
-#
-#
-class ParameterIndex:
-    _variables = {
+class Extractor:
+    _vmap = {
         'alpha': 'document',
         'beta': 'document',
         'theta': 'author_model',
     }
 
-    def __init__(self, path):
-        self.db = json.loads(path.read_text())
+    @classmethod
+    def select(cls, df):
+        for c in df.columns:
+            for v in cls._vmap:
+                if c.startswith(v):
+                    yield c
 
-    def __getitem__(self, item):
-        key = self._variables[item.parameter]
-        return self.db[key][item.index]
+    def __call__(self, x):
+        return x['variable'].apply(self.extract)
 
-    def is_parameter(self, value):
-        return any(map(value.startswith, self._variables))
+    def extract(self, y):
+        return self.handle(*y.split('.'))
 
-#
-#
-#
-class DataIterator:
-    def __init__(self, root, chunksize):
-        self.root = root
-        self.chunksize = chunksize
-        self.windows = 0
+    def handle(self, name, index):
+        raise NotImplementedError()
 
-    def __len__(self):
-        return self.windows
+class ParameterExtractor(Extractor):
+    def handle(self, name, index):
+        return name
 
-    def __iter__(self):
-        window = []
+class SourceExtractor(Extractor):
+    def __init__(self, db):
+        super().__init__()
+        self.db = db
 
-        for s in self.scanf():
-            window.append(s)
-            if len(window) >= self.chunksize:
-                yield window
-                self.windows += 1
-                window = []
-
-        if window:
-            yield window
-            self.windows += 1
-
-    def scanf(self):
-        for p in self.root.iterdir():
-            (*_, chain) = p.stem.split('_')
-            chain = int(chain)
-            with p.open() as fp:
-                reader = csv.DictReader(fp)
-                for idx_data in enumerate(reader):
-                    yield Sample(chain, *idx_data)
+    def handle(self, name, index):
+        ptype = self._vmap[name]
+        return self.db[ptype][index]
 
 #
 #
 #
 def func(incoming, outgoing, args):
-    p_index = ParameterIndex(args.parameters)
+    source = SourceExtractor(json.loads(args.parameters.read_text()))
+    parameter = ParameterExtractor()
+    value_vars = None
 
     while True:
-        samples = incoming.get()
-        Logger.info(len(samples))
+        (chain, df) = incoming.get()
+        Logger.info('%d %d', chain, len(df))
+        if value_vars is None:
+            value_vars = list(Extractor.select(df))
 
-        records = []
-        for s in samples:
-            for (param, value) in s:
-                if p_index.is_parameter(param):
-                    s_param = StanParameter(param)
-                    records.append(Record(
-                        s.chain,
-                        s.index,
-                        s_param.parameter,
-                        p_index[s_param],
-                        value,
-                    ))
-
+        records = (df
+                   .melt(id_vars='index', value_vars=value_vars)
+                   .assign(chain=chain, source=source, parameter=parameter)
+                   .drop(columns='variable')
+                   .to_dict(orient='records'))
         outgoing.put(records)
 
-#
-#
-#
+def scan(root, window):
+    for data in root.iterdir():
+        assert data.suffix.endswith('csv')
+        (*_, chain) = data.stem.split('_')
+        chain = int(chain)
+        with pd.read_csv(data, chunksize=window, comment='#') as reader:
+            for df in reader:
+                yield (chain, df.reset_index())
+
 if __name__ == '__main__':
     arguments = ArgumentParser()
     arguments.add_argument('--stan-output', type=Path)
     arguments.add_argument('--parameters', type=Path)
-    arguments.add_argument('--chunksize', type=int, default=int(1e5))
+    arguments.add_argument('--chunksize', type=int, default=int(1e2))
     # arguments.add_argument('--with-sampler-info', action='store_true')
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
@@ -139,14 +96,15 @@ if __name__ == '__main__':
     )
 
     with Pool(args.workers, func, initargs):
-        reader = DataIterator(args.stan_output, args.chunksize)
-        for i in reader:
+        jobs = 0
+        for i in scan(args.stan_output, args.chunksize):
             outgoing.put(i)
+            jobs += 1
 
-        fieldnames = [ x.name for x in fields(Record) ]
-        writer = csv.DictWriter(sys.stdout, fieldnames=fieldnames)
-        writer.writeheader()
-
-        for _ in range(len(reader)):
+        writer = None
+        for _ in range(jobs):
             rows = incoming.get()
-            writer.writerows(map(asdict, rows))
+            if writer is None:
+                writer = csv.DictWriter(sys.stdout, fieldnames=rows[0])
+                writer.writeheader()
+            writer.writerows(rows)
