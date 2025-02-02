@@ -1,5 +1,4 @@
-awswrangler
+fsspec
 huggingface_hub
 pandas
-pydantic
 requests
