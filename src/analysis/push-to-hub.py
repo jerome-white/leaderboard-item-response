@@ -7,7 +7,7 @@ import pandas as pd
 from datasets import Dataset
 
 def reader(fp, window):
-    with pd.read_csv(sys.stdin, iterator=True) as reader:
+    with pd.read_csv(fp, iterator=True) as reader:
         df = reader.get_chunk(window)
         for i in df.itertuples(index=False):
             yield i._asdict()
