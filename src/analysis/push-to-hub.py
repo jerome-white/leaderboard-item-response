@@ -14,6 +14,7 @@ def reader(fp, window):
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
+    arguments.add_argument('--split')
     arguments.add_argument('--target', type=Path)
     arguments.add_argument('--window', type=int, default=int(1e5))
     args = arguments.parse_args()
@@ -26,5 +27,6 @@ if __name__ == '__main__':
                 'fp': sys.stdin,
                 'window': args.window,
             },
+            split=args.split,
         )
         dataset.push_to_hub(str(args.target))
