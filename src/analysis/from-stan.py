@@ -50,7 +50,7 @@ class SourceExtractor(Extractor):
 #
 #
 #
-def scan(root, window):
+def scan(root, chunksize, sample=None):
     usecols = None
     comment = '#'
 
@@ -68,7 +68,7 @@ def scan(root, window):
         with pd.read_csv(data,
                          comment=comment,
                          usecols=usecols,
-                         chunksize=window) as reader:
+                         chunksize=chunksize) as reader:
             for df in reader:
                 yield (chain, df)
 
