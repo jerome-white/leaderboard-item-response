@@ -70,12 +70,15 @@ def scan(root, chunksize, sample=None):
                          usecols=usecols,
                          chunksize=chunksize) as reader:
             for df in reader:
+                if sample is not None:
+                    df = df.sample(frac=sample)
                 yield (chain, df)
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
     arguments.add_argument('--stan-output', type=Path)
     arguments.add_argument('--parameters', type=Path)
+    arguments.add_argument('--sample', type=float)
     arguments.add_argument('--read-size', type=int, default=int(1e2))
     arguments.add_argument('--write-size', type=int, default=int(1e4))
     arguments.add_argument('--workers', type=int)
@@ -84,20 +87,22 @@ if __name__ == '__main__':
     source = SourceExtractor(json.loads(args.parameters.read_text()))
     parameter = ParameterExtractor()
 
+    sample = 'sample'
     writer = None
-    for (chain, df) in scan(args.stan_output, args.read_size):
+    for (chain, df) in scan(args.stan_output, args.read_size, args.sample):
         frame = (df
-                 .reset_index()
-                 .melt(id_vars='index', value_vars=df.columns)
+                 .reset_index(names=sample)
+                 .melt(id_vars=sample, value_vars=df.columns)
                  .assign(chain=chain, source=source, parameter=parameter)
                  .drop(columns='variable'))
         n = len(frame)
 
         Logger.info(
-            '%d [%d, %d) -> %d',
+            '%d [%d, %d) %d -> %d',
             chain,
-            df.index.start,
-            df.index.stop,
+            df.index.min(),
+            df.index.max(),
+            len(df),
             n,
         )
 
