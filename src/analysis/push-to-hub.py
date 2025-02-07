@@ -6,9 +6,12 @@ from tempfile import TemporaryDirectory
 import pandas as pd
 from datasets import Dataset, disable_progress_bars
 
+from mylib import Logger
+
 def reader(fp, chunksize):
     with pd.read_csv(fp, chunksize=chunksize) as reader:
         for df in reader:
+            Logger.info('[%d, %d]', df.index.min(), df.index.max())
             for i in df.itertuples(index=False):
                 yield i._asdict()
 
