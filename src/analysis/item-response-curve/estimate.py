@@ -23,7 +23,8 @@ class ItemResponseCurve:
         self.theta = theta
 
     def __call__(self, x):
-        return 1 / (1 + np.exp(-x['alpha'] * (self.theta - x['beta'])))
+        with np.errstate(over='ignore'):
+            return 1 / (1 + np.exp(-x['alpha'] * (self.theta - x['beta'])))
 
 class ItemIterator:
     _parameter = 'parameter'
@@ -69,6 +70,8 @@ def func(incoming, outgoing, args):
             records = (group
                        .df
                        .assign(irc=irc, ability=a, **kwargs)
+                       .replace(to_replace={'irc': {np.inf:  np.nan}})
+                       .dropna(subset='irc')
                        .drop(columns=ItemIterator._items)
                        .to_dict(orient='records'))
             outgoing.put(records)
