@@ -50,9 +50,10 @@ def func(incoming, outgoing, args):
         Logger.info(group)
 
         for a in abilities:
+            irc = ItemResponseCurve(a)
             records = (group
                        .df
-                       .assign(irc=irc(a))
+                       .assign(irc=irc)
                        .filter(items=['item', 'irc'])
                        .to_dict(orient='records'))
             outgoing.put(records)
