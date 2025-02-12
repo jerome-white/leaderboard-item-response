@@ -69,6 +69,7 @@ def func(incoming, outgoing, args):
             records = (group
                        .df
                        .assign(irc=irc, ability=a, **kwargs)
+                       .drop(columns=ItemIterator._items)
                        .to_dict(orient='records'))
             outgoing.put(records)
         outgoing.put(None)
