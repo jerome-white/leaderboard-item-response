@@ -44,6 +44,10 @@ def func(incoming, outgoing, args):
         args.max_ability,
         num=args.n_ability,
     )
+    items = [
+        'item',
+        'irc',
+    ]
 
     while True:
         group = incoming.get()
@@ -53,8 +57,9 @@ def func(incoming, outgoing, args):
             irc = ItemResponseCurve(a)
             records = (group
                        .df
-                       .assign(irc=irc)
-                       .filter(items=['item', 'irc'])
+                       .assign(irc=irc,
+                               ability=a)
+                       .filter(items=item)
                        .to_dict(orient='records'))
             outgoing.put(records)
         outgoing.put(None)
