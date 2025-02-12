@@ -25,41 +25,50 @@ class ItemResponseCurve:
     def __call__(self, x):
         return 1 / (1 + np.exp(-x['alpha'] * (self.theta - x['beta'])))
 
-def items(path):
-    parameter = 'parameter'
-    df = pd.read_csv(path, memory_map=True)
-    mask = df[parameter].isin(['alpha', 'beta'])
+class ItemIterator:
+    _parameter = 'parameter'
+    _items = {
+        'alpha': 'discrimination',
+        'beta':	'difficulty',
+    }
 
-    for (s, g) in df[mask].groupby('source', sort=False):
-        view = (g
-                .pivot(index=['chain', 'sample'],
-                       columns=parameter,
-                       values='value')
-                .assign(item=s))
-        yield ItemGroup(s, view)
+    def __init__(self, path):
+        self.path = path
+
+    def __iter__(self):
+        df = pd.read_csv(self.path, memory_map=True)
+        mask = df[self._parameter].isin(self._items)
+        index = [
+            'chain',
+            'sample',
+        ]
+
+        for (s, g) in df[mask].groupby('source', sort=False):
+            view = (g
+                    .pivot(index=index,
+                           columns=self._parameter,
+                           values='value')
+                    .assign(item=s))
+            yield ItemGroup(s, view)
 
 def func(incoming, outgoing, args):
-    abilities = np.linspace(
+    _abilities = np.linspace(
         args.min_ability,
         args.max_ability,
         num=args.n_ability,
     )
-    items = [
-        'item',
-        'irc',
-    ]
+    items = ItemIterator._items.items()
 
     while True:
         group = incoming.get()
         Logger.info(group)
 
-        for a in abilities:
+        for a in _abilities:
             irc = ItemResponseCurve(a)
+            kwargs = { y: group.df[x].median() for (x, y) in items }
             records = (group
                        .df
-                       .assign(irc=irc,
-                               ability=a)
-                       .filter(items=item)
+                       .assign(irc=irc, ability=a, **kwargs)
                        .to_dict(orient='records'))
             outgoing.put(records)
         outgoing.put(None)
@@ -83,7 +92,8 @@ if __name__ == '__main__':
 
     with Pool(args.workers, func, initargs):
         jobs = 0
-        for i in items(args.samples):
+        items = ItemIterator(args.samples)
+        for i in items:
             outgoing.put(i)
             jobs += 1
 
