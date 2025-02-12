@@ -53,25 +53,31 @@ class ItemIterator:
             yield ItemGroup(s, view)
 
 def func(incoming, outgoing, args):
-    _abilities = np.linspace(
+    irc = 'irc'
+    items = ItemIterator._items.items()
+    abilities = np.linspace(
         args.min_ability,
         args.max_ability,
         num=args.n_ability,
     )
-    items = ItemIterator._items.items()
+    inf_nan = {
+        np.inf: np.nan,
+    }
 
     while True:
         group = incoming.get()
         Logger.info(group)
 
-        for a in _abilities:
-            irc = ItemResponseCurve(a)
-            kwargs = { y: group.df[x].median() for (x, y) in items }
+        for a in abilities:
+            kwargs = {
+                irc: ItemResponseCurve(a),
+            }
+            kwargs.update((y, group.df[x].median()) for (x, y) in items)
             records = (group
                        .df
-                       .assign(irc=irc, ability=a, **kwargs)
-                       .replace(to_replace={'irc': {np.inf:  np.nan}})
-                       .dropna(subset='irc')
+                       .assign(ability=a, **kwargs)
+                       .replace(to_replace=inf_nan)
+                       .dropna(subset=irc)
                        .drop(columns=ItemIterator._items)
                        .to_dict(orient='records'))
             outgoing.put(records)
