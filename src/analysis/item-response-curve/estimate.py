@@ -69,13 +69,10 @@ def func(incoming, outgoing, args):
         Logger.info(group)
 
         for a in abilities:
-            kwargs = {
-                irc: ItemResponseCurve(a),
-            }
-            kwargs.update((y, group.df[x].median()) for (x, y) in items)
+            kwargs = { y: group.df[x].median() for (x, y) in items }
             records = (group
                        .df
-                       .assign(ability=a, **kwargs)
+                       .assign(irc=irc, ability=a, **kwargs)
                        .replace(to_replace=inf_nan)
                        .dropna(subset=irc)
                        .drop(columns=ItemIterator._items)
