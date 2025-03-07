@@ -126,7 +126,7 @@ def func(incoming, outgoing, args):
         df = pd.read_csv(path, compression='gzip', memory_map=True)
         info = SubmissionInfo.from_path(path.relative_to(args.data_root))
 
-        handler = Handler(info, args.document_root)
+        handler = Handler(info, args.question_bank)
         for s in experiment['subjects']:
             try:
                 records = list(handler(df, s))
@@ -139,7 +139,7 @@ def func(incoming, outgoing, args):
 if __name__ == '__main__':
     arguments = ArgumentParser()
     arguments.add_argument('--data-root', type=Path)
-    arguments.add_argument('--document-root', type=Path)
+    arguments.add_argument('--question-bank', type=Path)
     arguments.add_argument('--experiment', type=Path)
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
