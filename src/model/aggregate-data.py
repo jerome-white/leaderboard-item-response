@@ -9,7 +9,7 @@ from multiprocessing import Pool, Queue
 
 import pandas as pd
 
-from mylib import Logger, SubmissionInfo
+from mylib import Logger, Experiment, SubmissionInfo
 
 #
 #
@@ -107,7 +107,7 @@ class InstructionFollowingEval(NoSubjectBenchmark):
 #
 #
 def func(incoming, outgoing, args):
-    experiment = json.loads(args.experiments.read_text())
+    experiment = Experiment(**json.loads(args.experiment.read_text()))
     Handler = {
         'bbh': BigBenchHard,
         'arc': AbstractionReasoningCorpus,
@@ -117,7 +117,7 @@ def func(incoming, outgoing, args):
         'gpqa': GraduateLevelGoogleProofQA,
         'gsm8k': GradeSchoolMath8K,
         'ifeval': InstructionFollowingEval,
-    }[experiment['benchmark']]
+    }[experiment.benchmark]
 
     while True:
         path = incoming.get()
@@ -127,11 +127,11 @@ def func(incoming, outgoing, args):
         info = SubmissionInfo.from_path(path.relative_to(args.data_root))
 
         handler = Handler(info, args.question_bank)
-        for s in experiment['subjects']:
+        for e in experiment:
             try:
-                records = list(handler(df, s))
+                records = list(handler(df, e))
             except ValueError as err:
-                Logger.error('%s %s: %s', path, s, err)
+                Logger.error('%s %s: %s', path, e, err)
                 continue
             outgoing.put(records)
         outgoing.put(None)
