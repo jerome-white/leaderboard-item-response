@@ -26,9 +26,10 @@ python $src/list_.py \
 #
 
 src=$GIT_ROOT/src/model
-tmp=`mktemp`
+sandbox=`mktemp --directory`
 
 for i in $_data/*; do
+    tmp=`mktemp --tmpdir=$sandbox`
     python $src/aggregate-data.py --source $i \
 	| python $src/build-ids.py > $tmp
 
@@ -38,10 +39,10 @@ for i in $_data/*; do
 	cat <<EOF
 python $src/to-${j}.py --data-file $tmp > $out/$j.json
 EOF
-    done | parallel --will-cite --line-buffer
-done
+    done
+done | parallel --will-cite --line-buffer
 
-rm $tmp
+rm --recursive --force $sandbox
 
 #
 # Stan sampling
