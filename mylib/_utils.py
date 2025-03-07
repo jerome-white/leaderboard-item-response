@@ -1,15 +1,33 @@
 import random
 import functools as ft
 from pathlib import Path
-from dataclasses import dataclass
+from dataclasses import dataclass, astuple
 from urllib.parse import ParseResult, urlunparse
 
 @dataclass
 class SubmissionInfo:
-    author: str
-    model: str
     benchmark: str
     subject: str
+    author: str
+    model: str
+
+    def to_path(self, suffix):
+        path = Path(*astuple(self))
+        return path.with_suffix(suffix)
+
+    @classmethod
+    def from_path(cls, path):
+        (model, _) = path.stem.split('.', maxsplit=1)
+        return cls(*path.parent.parts, model)
+
+@dataclass
+class Experiment:
+    benchmark: str
+    name: str
+    subjects: list
+
+    def __iter__(self):
+        yield from self.subjectsfield(default_factory=list)
 
 class DatasetPathHandler:
     _netloc = 'datasets'

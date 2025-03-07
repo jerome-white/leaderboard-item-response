@@ -53,10 +53,6 @@ class MySubmissionInfo(SubmissionInfo):
         if not self.subject:
             self.subject = '_'
 
-    def to_path(self, suffix):
-        name = f'{self.model}{suffix}'
-        return Path(self.benchmark, self.subject, self.author, name)
-
 #
 #
 #

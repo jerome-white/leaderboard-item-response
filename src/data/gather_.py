@@ -28,7 +28,12 @@ class Submission:
                                  .parts)
         subject = '_'.join(subject)
 
-        return SubmissionInfo(author, model, benchmark, subject)
+        return SubmissionInfo(
+            author=author,
+            model=model,
+            benchmark=benchmark,
+            subject=subject,
+        )
 
 def records(fp):
     reader = csv.DictReader(fp)
