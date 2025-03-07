@@ -4,6 +4,8 @@ export GIT_ROOT=`git rev-parse --show-toplevel`
 source $GIT_ROOT/config.rc || exit 1
 
 _data=$SCRATCH/var/data
+_docs=$SCRATCH/var/documents
+_results=$SCRATCH/opt
 
 huggingface-cli login --token $HF_BEARER_TOKEN &> /dev/null || exit 1
 
@@ -12,14 +14,13 @@ huggingface-cli login --token $HF_BEARER_TOKEN &> /dev/null || exit 1
 #
 
 src=$GIT_ROOT/src/data
-docs=$SCRATCH/var/documents
 
 python $src/list_.py \
     | python $src/gather_.py \
     | python $src/reduce_.py --corpus $_data \
     | python $src/download_.py \
 	     --output $_data \
-	     --question-bank $docs
+	     --question-bank $_docs
 
 #
 # Stan preparation
@@ -28,17 +29,21 @@ python $src/list_.py \
 src=$GIT_ROOT/src/model
 sandbox=`mktemp --directory`
 
-for i in $_data/*; do
-    tmp=`mktemp --tmpdir=$sandbox`
-    python $src/aggregate-data.py --source $i \
-	| python $src/build-ids.py > $tmp
-
-    out=$SCRATCH/opt/`basename $i`
-    mkdir --parents $out
-    for j in stan variables; do
-	cat <<EOF
+for i in $GIT_ROOT/src/experiments/*.py; do
+    python $i --output $_results \
+	| while read; do
+	out=`dirname $REPLY`
+	tmp=`mktemp --tmpdir=$sandbox`
+	python $src/aggregate-data.py \
+	       --data-root $_data \
+	       --question-bank $_docs \
+	       --experiment $REPLY \
+	    | python $src/build-ids.py > $tmp
+	for j in stan variables; do
+	    cat <<EOF
 python $src/to-${j}.py --data-file $tmp > $out/$j.json
 EOF
+	done
     done
 done | parallel --will-cite --line-buffer
 
