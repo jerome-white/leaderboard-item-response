@@ -26,7 +26,7 @@ class Record:
 #
 #
 class BenchmarkHandler:
-    _r_fields = [ x.name for x in fields(Record) ]
+    _r_fields = tuple(x.name for x in fields(Record))
 
     def __init__(self, info, documents, metric):
         self.info = info
