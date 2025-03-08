@@ -1,7 +1,7 @@
 import random
 import functools as ft
 from pathlib import Path
-from dataclasses import dataclass, astuple
+from dataclasses import dataclass, field, astuple
 from urllib.parse import ParseResult, urlunparse
 
 @dataclass
@@ -24,10 +24,10 @@ class SubmissionInfo:
 class Experiment:
     benchmark: str
     name: str
-    subjects: list
+    subjects: list = field(default_factory=list)
 
     def __iter__(self):
-        yield from self.subjectsfield(default_factory=list)
+        yield from self.subjects
 
 class DatasetPathHandler:
     _netloc = 'datasets'
