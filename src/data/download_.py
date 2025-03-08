@@ -57,17 +57,31 @@ class MySubmissionInfo(SubmissionInfo):
 #
 #
 @dataclass
-class QuestionBank:
-    name: Path
-    question: dict
+class Document:
+    doc: str
+    content: dict
 
-    def dump(self, dst):
-        output = dst.joinpath(self.name).with_suffix('.json')
-        if not output.exists():
-            output.parent.mkdir(parents=True, exist_ok=True)
-            data = json.dumps(self.question, indent=2)
-            with output.open('w') as fp:
-                print(data, file=fp)
+@dataclass
+class DocumentBank:
+    name: Path
+    documents: list = field(default_factory=list)
+
+    def __iter__(self):
+        yield from self.documents
+
+class DocumentAggregator:
+    def __init__(self, destination):
+        self.destination = destination
+        self.history = set()
+
+    def __call__(self, dbank):
+        output = self.destination.joinpath(dbank.name).with_suffix('.json')
+        output.parent.mkdir(parents=True, exist_ok=True)
+        with output.open('a') as fp:
+            for d in dbank:
+                if d.doc not in self.history:
+                    print(json.dumps(d.content), file=fp)
+                    self.history.add(d.doc)
 
 #
 #
@@ -133,7 +147,7 @@ class SubmissionReader:
 
     def __init__(self, reader):
         self.reader = reader
-        self.documents = {}
+        self.documents = []
 
     def __call__(self, submission):
         path = Path(submission['path'])
@@ -145,14 +159,15 @@ class SubmissionReader:
     def results(self, path):
         for line in self.reader(path):
             document = line['doc_hash']
-
+            self.store(document, line)
             for (metric, score) in line.items():
                 if any(metric.find(x) >= 0 for x in self._metrics):
                     yield Result(document, metric, score)
 
-            self.documents[document] = {
-                x: line[x] for x in self._document_keys
-            }
+    def store(self, doc, info):
+        content = { x: info[x] for x in self._document_keys }
+        document = Document(doc, content)
+        self.documents.append(document)
 
 #
 #
@@ -181,7 +196,8 @@ def func(incoming, outgoing, args):
             df.to_csv(out, index=False, compression='gzip')
 
         name = Path(info.benchmark, info.subject)
-        outgoing.put(QuestionBank(name, reader.documents))
+        dbank = DocumentBank(name, reader.documents)
+        outgoing.put(dbank)
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
@@ -205,7 +221,8 @@ if __name__ == '__main__':
             outgoing.put(row)
             jobs += 1
 
+        aggregate = DocumentAggregator(args.question_bank)
         for _ in range(jobs):
-            qb = incoming.get()
-            if qb is not None:
-                qb.dump(args.question_bank)
+            dbank = incoming.get()
+            if dbank is not None:
+                aggregate(dbank)
