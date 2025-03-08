@@ -16,10 +16,6 @@ def func(args):
     out = (output
            .joinpath(e.benchmark, category, 'experiment')
            .with_suffix('.json'))
-    if out.exists():
-        Logger.error(f'{out} exists')
-        return
-
     out.parent.mkdir(parents=True, exist_ok=True)
     with out.open('w') as fp:
         print(json.dumps(asdict(e), indent=2), file=fp)
