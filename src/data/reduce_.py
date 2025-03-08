@@ -63,8 +63,10 @@ def extract(db, fp):
     for row in reader:
         (info, date) = parser(row)
         info = astuple(info)
-        if info not in db or db[info] > date:
-            yield row
+        if info in db and db[info] <= date:
+            Logger.warning('skipping %s', info)
+            continue
+        yield row
 
 #
 #
