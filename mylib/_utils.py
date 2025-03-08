@@ -4,7 +4,7 @@ from pathlib import Path
 from dataclasses import dataclass, field, astuple
 from urllib.parse import ParseResult, urlunparse
 
-@dataclass
+@dataclass(frozen=True)
 class SubmissionInfo:
     benchmark: str
     subject: str

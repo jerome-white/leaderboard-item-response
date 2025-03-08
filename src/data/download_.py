@@ -47,7 +47,7 @@ class Result:
 #
 #
 #
-@dataclass
+@dataclass(frozen=True)
 class MySubmissionInfo(SubmissionInfo):
     def __post_init__(self):
         if not self.subject:
