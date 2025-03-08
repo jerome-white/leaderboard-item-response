@@ -1,5 +1,6 @@
 import sys
 import csv
+import gzip
 from pathlib import Path
 from argparse import ArgumentParser
 from dataclasses import fields, astuple
@@ -30,7 +31,7 @@ def func(incoming, outgoing):
         path = incoming.get()
         Logger.info(path)
 
-        with path.open() as fp:
+        with gzip.open(path, mode='rt') as fp:
             reader = csv.DictReader(fp)
             for row in reader:
                 outgoing.put(parser(row))
@@ -46,7 +47,7 @@ def scan(args):
 
     with Pool(args.workers, func, initargs):
         jobs = 0
-        for i in args.corpus.rglob('*.csv'):
+        for i in args.corpus.rglob('*.csv.gz'):
             outgoing.put(i)
             jobs += 1
 
