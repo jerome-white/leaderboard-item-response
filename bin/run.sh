@@ -27,27 +27,32 @@ python $src/list_.py \
 #
 
 src=$GIT_ROOT/src/model
-sandbox=`mktemp --directory`
+tmp=`mktemp`
+script=aggregate-data
 
 for i in $GIT_ROOT/src/experiments/*.py; do
     python $i --output $_results \
 	| while read; do
 	out=`dirname $REPLY`
-	tmp=`mktemp --tmpdir=$sandbox`
-	python $src/aggregate-data.py \
+
+	agg=$out/${script}.csv
+	python $src/${script}.py \
 	       --data-root $_data \
 	       --question-bank $_docs \
-	       --experiment $REPLY \
-	    | python $src/build-ids.py > $tmp
+	       --experiment $REPLY > $agg
+
+	python $src/build-ids.py < $agg > $tmp
 	for j in stan variables; do
 	    cat <<EOF
 python $src/to-${j}.py --data-file $tmp > $out/$j.json
 EOF
-	done
-    done
-done | parallel --will-cite --line-buffer
+	done | parallel --will-cite --line-buffer
 
-rm --recursive --force $sandbox
+	pigz --best $agg
+    done
+done
+
+rm $tmp
 
 #
 # Stan sampling
