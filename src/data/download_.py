@@ -7,7 +7,7 @@ import statistics as st
 from typing import SupportsFloat
 from pathlib import Path
 from argparse import ArgumentParser
-from dataclasses import dataclass, fields, asdict
+from dataclasses import dataclass, field, fields, asdict
 from urllib.parse import ParseResult, urlunparse
 from multiprocessing import Pool, Queue
 
