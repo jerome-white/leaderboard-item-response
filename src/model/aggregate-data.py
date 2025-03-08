@@ -20,7 +20,6 @@ class Record:
     model: str
     document: str
     score: float
-    subject: str
 
 #
 #
@@ -42,7 +41,7 @@ class BenchmarkHandler:
         observations = view.itertuples(index=False)
         for i in self.handle(subject, observations):
             args = (getattr(i, x) for x in self._r_fields)
-            yield Record(*args, subject=subject)
+            yield Record(*args)
 
     def handle(self, subject, observations):
         raise NotImplementedError()
