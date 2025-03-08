@@ -78,8 +78,8 @@ if __name__ == '__main__':
     args = arguments.parse_args()
 
     writer = None
-    for i in extract(dict(scan(args)), sys.stdin):
+    for row in extract(dict(scan(args)), sys.stdin):
         if writer is None:
-            writer = csv.DictWriter(sys.stdout, fieldnames=i)
+            writer = csv.DictWriter(sys.stdout, fieldnames=row)
             writer.writeheader()
-        writer.writerow(i)
+        writer.writerow(row)
