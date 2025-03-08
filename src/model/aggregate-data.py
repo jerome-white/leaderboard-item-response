@@ -81,7 +81,6 @@ class MultitaskUnderstanding(IndexedCategoryBenchmark):
         super().__init__(info, documents, 'acc', 'category')
 
 class GraduateLevelGoogleProofQA(IndexedCategoryBenchmark):
-    # questions are repeated across subjects!
     def __init__(self, info, documents):
         super().__init__(info, documents, 'acc_norm', 'High-level domain')
 
@@ -105,8 +104,7 @@ class InstructionFollowingEval(NoSubjectBenchmark):
 #
 #
 #
-def func(incoming, outgoing, args):
-    experiment = Experiment(**json.loads(args.experiment.read_text()))
+def func(incoming, outgoing, experiment, args):
     Handler = {
         'bbh': BigBenchHard,
         'arc': AbstractionReasoningCorpus,
@@ -124,8 +122,12 @@ def func(incoming, outgoing, args):
 
         df = pd.read_csv(path, compression='gzip', memory_map=True)
         info = SubmissionInfo.from_path(path.relative_to(args.data_root))
+        documents = (args
+                     .question_bank
+                     .joinpath(experiment.benchmark, info.subject)
+                     .with_suffix('.json'))
+        handler = Handler(info, documents)
 
-        handler = Handler(info, args.question_bank)
         for e in experiment:
             try:
                 records = list(handler(df, e))
@@ -143,24 +145,21 @@ if __name__ == '__main__':
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
+    experiment = Experiment(**json.loads(args.experiment.read_text()))
+
     incoming = Queue()
     outgoing = Queue()
     initargs = (
         outgoing,
         incoming,
+        experiment,
         args,
     )
 
     with Pool(args.workers, func, initargs):
-        experiments = json.loads(args.experiments.read_text())
-        root = args.data_root.joinpath(experiments['benchmark'])
-        iterable = it.product(
-            args.data_root.rglob('*.csv.gz'),
-            experiments['subject']
-        )
-
         jobs = 0
-        for i in iterable:
+        root = args.data_root.joinpath(experiment.benchmark)
+        for i in root.rglob('*.csv.gz'):
             outgoing.put(i)
             jobs += 1
 
