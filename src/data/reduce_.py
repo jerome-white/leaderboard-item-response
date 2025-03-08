@@ -29,7 +29,7 @@ def func(incoming, outgoing):
 
     while True:
         path = incoming.get()
-        Logger.info(path)
+        Logger.debug(path)
 
         with gzip.open(path, mode='rt') as fp:
             reader = csv.DictReader(fp)
@@ -50,6 +50,7 @@ def scan(args):
         for i in args.corpus.rglob('*.csv.gz'):
             outgoing.put(i)
             jobs += 1
+        Logger.info('loading %d', jobs)
 
         for _ in range(jobs):
             result = incoming.get()
