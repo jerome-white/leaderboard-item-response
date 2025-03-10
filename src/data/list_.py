@@ -38,7 +38,7 @@ class DatasetFileSystem:
             except Exception as err:
                 Logger.error(
                     '%s: %s (attempt=%d, backoff=%ds)',
-                    type(err),
+                    type(err).__name__,
                     err,
                     i,
                     j,
