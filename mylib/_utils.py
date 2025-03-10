@@ -11,9 +11,11 @@ class SubmissionInfo:
     author: str
     model: str
 
-    def to_path(self, suffix):
+    def to_path(self, suffix=None):
         path = Path(*astuple(self))
-        return path.with_suffix(suffix)
+        if suffix is not None:
+            path = path.with_suffix(suffix)
+        return path
 
     @classmethod
     def from_path(cls, path):
