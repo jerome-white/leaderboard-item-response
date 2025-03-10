@@ -66,7 +66,7 @@ class DocumentAggregator:
         self.history = set()
 
     def __call__(self, dbank):
-        output = self.destination.joinpath(dbank.name).with_suffix('.json')
+        output = self.destination.joinpath(dbank.name).with_suffix('.jsonl')
         output.parent.mkdir(parents=True, exist_ok=True)
         with output.open('a') as fp:
             for d in dbank:
