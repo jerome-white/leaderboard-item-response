@@ -9,7 +9,7 @@ from multiprocessing import Pool, Queue
 
 import pandas as pd
 
-from mylib import Logger, Experiment, SubmissionInfo
+from mylib import Logger, Experiment, SubmissionInfo, Document
 
 #
 #
@@ -68,8 +68,12 @@ class Math(DirectoryHandler):
 class IndexedCategoryBenchmark(BenchmarkHandler):
     def __init__(self, info, documents, metric, s_key):
         super().__init__(info, documents, metric)
-        docs = json.loads(self.documents.read_text())
-        self.subjects = { x: y['doc'][s_key] for (x, y) in docs.items() }
+        self.subjects = dict(self.load(s_key))
+
+    def load(self, s_key):
+        for i in Document.scanf(self.documents):
+            value = i.content['doc'][s_key]
+            yield (i.question, value)
 
     def handle(self, subject, observations):
         for o in observations:
