@@ -1,8 +1,21 @@
+import json
 import random
 import functools as ft
 from pathlib import Path
 from dataclasses import dataclass, field, astuple
 from urllib.parse import ParseResult, urlunparse
+
+@dataclass
+class Document:
+    question: str
+    content: dict
+
+    @classmethod
+    def scanf(cls, path):
+        with path.open() as fp:
+            for line in fp:
+                doc = json.loads(line)
+                yield cls(**doc)
 
 @dataclass(frozen=True)
 class SubmissionInfo:

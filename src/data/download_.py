@@ -17,7 +17,7 @@ import pandas as pd
 from requests import HTTPError
 from huggingface_hub.utils import GatedRepoError, build_hf_headers
 
-from mylib import Logger, DatasetPathHandler, SubmissionInfo
+from mylib import Logger, DatasetPathHandler, SubmissionInfo, Document
 
 #
 # Types and functions to evaluation scores. Create new `to_float`s to
@@ -47,11 +47,6 @@ class Result:
 #
 #
 #
-@dataclass
-class Document:
-    question: str
-    content: dict
-
 @dataclass
 class DocumentBank:
     name: Path
