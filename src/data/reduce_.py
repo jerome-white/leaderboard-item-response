@@ -4,7 +4,7 @@ import gzip
 from pathlib import Path
 from argparse import ArgumentParser
 from dataclasses import fields, astuple
-from multiprocessing import Pool, Queue
+from multiprocessing import Pool
 
 import pandas as pd
 
@@ -24,47 +24,30 @@ class SubmissionParser:
 #
 #
 #
-def func(incoming, outgoing):
+def func(path):
+    Logger.debug(path)
+
     parser = SubmissionParser()
+    with gzip.open(path, mode='rt') as fp:
+        reader = csv.DictReader(fp)
+        for row in reader:
+            return parser(row)
 
-    while True:
-        path = incoming.get()
-        Logger.debug(path)
-
-        with gzip.open(path, mode='rt') as fp:
-            reader = csv.DictReader(fp)
-            for row in reader:
-                outgoing.put(parser(row))
-                break
+    Logger.critical('removing empty file %s', path)
+    path.unlink()
 
 def scan(args):
-    incoming = Queue()
-    outgoing = Queue()
-    initargs = (
-        outgoing,
-        incoming,
-    )
-
-    with Pool(args.workers, func, initargs):
-        jobs = 0
-        for i in args.corpus.rglob('*.csv.gz'):
-            outgoing.put(i)
-            jobs += 1
-        Logger.info('loading %d', jobs)
-
-        for _ in range(jobs):
-            result = incoming.get()
-            yield result
+    with Pool(args.workers) as pool:
+        iterable = args.corpus.rglob('*.csv.gz')
+        yield from filter(None, pool.imap_unordered(func, iterable))
 
 def extract(db, fp):
     parser = SubmissionParser()
-
     reader = csv.DictReader(fp)
     for row in reader:
         (info, date) = parser(row)
-        info = astuple(info)
         if info in db and db[info] <= date:
-            Logger.warning('skipping %s', info)
+            Logger.warning('skipping %s', info.to_path())
             continue
         yield row
 
