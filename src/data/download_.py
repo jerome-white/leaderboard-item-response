@@ -47,15 +47,6 @@ class Result:
 #
 #
 #
-@dataclass(frozen=True)
-class MySubmissionInfo(SubmissionInfo):
-    def __post_init__(self):
-        if not self.subject:
-            self.subject = '_'
-
-#
-#
-#
 @dataclass
 class Document:
     doc: str
@@ -174,7 +165,7 @@ class SubmissionReader:
 #
 def func(incoming, outgoing, args):
     hf_reader = HfFileReader()
-    keys = [ x.name for x in fields(MySubmissionInfo) ]
+    keys = [ x.name for x in fields(SubmissionInfo) ]
 
     while True:
         submission = incoming.get()
@@ -188,7 +179,9 @@ def func(incoming, outgoing, args):
             outgoing.put(None)
             continue
 
-        info = MySubmissionInfo(*map(submission.get, keys))
+        info = SubmissionInfo(*map(submission.get, keys))
+        if not info.subject:
+            info = replace(info, subject='_')
 
         if not df.empty:
             out = args.output.joinpath(info.to_path('.csv.gz'))
