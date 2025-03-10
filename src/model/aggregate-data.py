@@ -125,7 +125,7 @@ def func(incoming, outgoing, experiment, args):
         documents = (args
                      .question_bank
                      .joinpath(experiment.benchmark, info.subject)
-                     .with_suffix('.json'))
+                     .with_suffix('.jsonl'))
         handler = Handler(info, documents)
 
         for e in experiment:
