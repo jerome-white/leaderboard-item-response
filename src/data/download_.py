@@ -7,7 +7,7 @@ import statistics as st
 from typing import SupportsFloat
 from pathlib import Path
 from argparse import ArgumentParser
-from dataclasses import dataclass, field, fields, asdict
+from dataclasses import dataclass, field, fields, asdict, replace
 from urllib.parse import ParseResult, urlunparse
 from multiprocessing import Pool, Queue
 
@@ -49,7 +49,7 @@ class Result:
 #
 @dataclass
 class Document:
-    doc: str
+    question: str
     content: dict
 
 @dataclass
@@ -70,9 +70,9 @@ class DocumentAggregator:
         output.parent.mkdir(parents=True, exist_ok=True)
         with output.open('a') as fp:
             for d in dbank:
-                if d.doc not in self.history:
-                    print(json.dumps(d.content), file=fp)
-                    self.history.add(d.doc)
+                if d.question not in self.history:
+                    print(json.dumps(asdict(d)), file=fp)
+                    self.history.add(d.question)
 
 #
 #
