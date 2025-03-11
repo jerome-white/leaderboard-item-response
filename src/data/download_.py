@@ -4,6 +4,7 @@ import json
 import itertools as it
 import functools as ft
 import statistics as st
+import collections as cl
 from typing import SupportsFloat
 from pathlib import Path
 from argparse import ArgumentParser
@@ -58,16 +59,30 @@ class DocumentBank:
 class DocumentAggregator:
     def __init__(self, destination):
         self.destination = destination
-        self.history = set()
+        self.history = cl.defaultdict(set)
 
     def __call__(self, dbank):
-        output = self.destination.joinpath(dbank.name).with_suffix('.jsonl')
-        output.parent.mkdir(parents=True, exist_ok=True)
+        output = (self
+                  .destination
+                  .joinpath(dbank.name)
+                  .with_suffix('.jsonl'))
+        history = self.setup_and_load(output)
+
         with output.open('a') as fp:
             for d in dbank:
-                if d.question not in self.history:
+                if d.question not in history:
                     print(json.dumps(asdict(d)), file=fp)
-                    self.history.add(d.question)
+                    history.add(d.question)
+
+    def setup_and_load(self, output):
+        history = self.history[output]
+        if not output.exists():
+            output.parent.mkdir(parents=True, exist_ok=True)
+        elif not history:
+            for d in Document.scanf(output):
+                history.add(d.question)
+
+        return history
 
 #
 #
