@@ -77,9 +77,9 @@ EOF
             d=`dirname $REPLY`
             echo "[ START `date` ] $d" 1>&2
 
-	    output=$d/output
-	    summary=$d/summary.csv
-	    mkdir $output 2> /dev/null || rm --recursive --force $output/*
+            output=$d/output
+            mkdir $output 2> /dev/null || continue
+            summary=$d/summary.csv
 	    rm --force $summary
 
 	    (cd $CMDSTAN && make --jobs=`nproc` $src/model) || exit 1
