@@ -71,9 +71,28 @@ EOF
 	rm $tmp
 	;;
     3) # Stan sampling
+	src=$GIT_ROOT/src/model
 	for d in $SCRATCH/opt/*; do
 	    echo "[ START `date` ] $d" 1>&2
-	    $GIT_ROOT/bin/sample.sh -d $d -w 500
+
+	    output=$d/output
+	    summary=$d/summary.csv
+	    mkdir $output 2> /dev/null || rm --recursive --force $output/*
+	    rm --force $summary
+
+	    (cd $CMDSTAN && make --jobs=`nproc` $src/model) || exit 1
+	    $src/model \
+		sample \
+		num_samples=$STAN_SAMPLES \
+		num_warmup=$STAN_WARMUP \
+		num_chains=$STAN_WORKERS \
+		data \
+		file=$d/stan.json \
+		output \
+		file=$output/chain.csv \
+		num_threads=$STAN_WORKERS \
+		&& stansummary --csv_filename=$summary $output/*.csv
+
 	done
 	;;
     4) # Hugging Face upload
