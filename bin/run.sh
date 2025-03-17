@@ -32,46 +32,46 @@ huggingface-cli login --token $HF_BEARER_TOKEN &> /dev/null || exit 1
 
 case $_step in
     1) # Hugging Face download
-	src=$GIT_ROOT/src/data
-	python $src/list_.py \
-	    | python $src/gather_.py \
-	    | python $src/reduce_.py --corpus $_responses \
-	    | python $src/download_.py \
-		     --output $_responses \
-		     --question-bank $_questions
-	;;
+        src=$GIT_ROOT/src/data
+        python $src/list_.py \
+            | python $src/gather_.py \
+            | python $src/reduce_.py --corpus $_responses \
+            | python $src/download_.py \
+                     --output $_responses \
+                     --question-bank $_questions
+        ;;
     2) # Stan preparation
-	src=$GIT_ROOT/src/model
-	tmp=`mktemp`
-	script=aggregate-data
+        src=$GIT_ROOT/src/model
+        tmp=`mktemp`
+        script=aggregate-data
 
-	for i in $GIT_ROOT/src/experiments/*.py; do
-	    python $i --output $_results \
-		| while read; do
-		echo "[ `date` ] $REPLY" 1>&2
-		out=`dirname $REPLY`
+        for i in $GIT_ROOT/src/experiments/*.py; do
+            python $i --output $_results \
+                | while read; do
+                echo "[ `date` ] $REPLY" 1>&2
+                out=`dirname $REPLY`
 
-		agg=$out/${script}.csv
-		python $src/${script}.py \
-		       --data-root $_responses \
-		       --question-bank $_questions \
-		       --experiment $REPLY > $agg
+                agg=$out/${script}.csv
+                python $src/${script}.py \
+                       --data-root $_responses \
+                       --question-bank $_questions \
+                       --experiment $REPLY > $agg
 
-		python $src/build-ids.py < $agg > $tmp
-		for j in stan variables; do
-		    cat <<EOF
+                python $src/build-ids.py < $agg > $tmp
+                for j in stan variables; do
+                    cat <<EOF
 python $src/to-${j}.py --data-file $tmp > $out/$j.json
 EOF
-		done | parallel --will-cite --line-buffer
+                done | parallel --will-cite --line-buffer
 
-		pigz --best $agg
-	    done
-	done
+                pigz --best $agg
+            done
+        done
 
-	rm $tmp
-	;;
+        rm $tmp
+        ;;
     3) # Stan sampling
-	src=$GIT_ROOT/src/model
+        src=$GIT_ROOT/src/model
         find $SCRATCH/opt -name 'stan.json' \
             | while read; do
             d=`dirname $REPLY`
@@ -80,41 +80,41 @@ EOF
             output=$d/output
             mkdir $output 2> /dev/null || continue
             summary=$d/summary.csv
-	    rm --force $summary
+            rm --force $summary
 
-	    (cd $CMDSTAN && make --jobs=`nproc` $src/model) || exit 1
-	    $src/model \
-		sample \
-		num_samples=$STAN_SAMPLES \
-		num_warmup=$STAN_WARMUP \
-		num_chains=$STAN_WORKERS \
-		data \
-		file=$d/stan.json \
-		output \
-		file=$output/chain.csv \
-		num_threads=$STAN_WORKERS \
-		&& stansummary --csv_filename=$summary $output/*.csv
+            (cd $CMDSTAN && make --jobs=`nproc` $src/model) || exit 1
+            $src/model \
+                sample \
+                num_samples=$STAN_SAMPLES \
+                num_warmup=$STAN_WARMUP \
+                num_chains=$STAN_WORKERS \
+                data \
+                file=$d/stan.json \
+                output \
+                file=$output/chain.csv \
+                num_threads=$STAN_WORKERS \
+                && stansummary --csv_filename=$summary $output/*.csv
 
-	done
-	;;
+        done
+        ;;
     4) # Hugging Face upload
-	for i in $SCRATCH/opt/*; do
-	    if [ -e $i/summary.csv ]; then
-		echo "[ `date` ] $i" 1>&2
-		split=`basename $i`
-		cat <<EOF
+        for i in $SCRATCH/opt/*; do
+            if [ -e $i/summary.csv ]; then
+                echo "[ `date` ] $i" 1>&2
+                split=`basename $i`
+                cat <<EOF
 python $src/from-stan.py $sample \
        --stan-output $i/output \
        --parameters $i/variables.json \
     | python $src/push-to-hub.py \
-	     --split $split \
-	     --target $HF_DATASETS_TARGET_
+             --split $split \
+             --target $HF_DATASETS_TARGET_
 EOF
-	    fi
-	done | parallel --will-cite --line-buffer
-	;;
+            fi
+        done | parallel --will-cite --line-buffer
+        ;;
     *)
-	;;
+        ;;
 esac
 
 #
