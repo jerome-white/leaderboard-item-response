@@ -72,8 +72,10 @@ EOF
 	;;
     3) # Stan sampling
 	src=$GIT_ROOT/src/model
-	for d in $SCRATCH/opt/*; do
-	    echo "[ START `date` ] $d" 1>&2
+        find $SCRATCH/opt -name 'stan.json' \
+            | while read; do
+            d=`dirname $REPLY`
+            echo "[ START `date` ] $d" 1>&2
 
 	    output=$d/output
 	    summary=$d/summary.csv
