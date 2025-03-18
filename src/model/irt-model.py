@@ -3,6 +3,7 @@ from argparse import ArgumentParser
 
 import pymc as pm
 import pandas as pd
+import pymc.sampling.jax as pmjax
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
@@ -37,7 +38,7 @@ if __name__ == '__main__':
             observed=df.to_numpy(),
         )
 
-        trace = pm.sampling_jax.sample_numpyro_nuts(
+        trace = pmjax.sample_numpyro_nuts(
             # chain_method='vectorized',
             random_seed=args.seed,
             idata_kwargs={
