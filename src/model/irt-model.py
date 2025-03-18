@@ -16,8 +16,9 @@ if __name__ == '__main__':
                     compression='gzip',
                     memory_map=True)
           .pivot(index=['author', 'model'],
-                 columns='question',
-                 values='score'))
+                 columns='document',
+                 values='score')
+          .dropna(axis='columns'))
     (persons, items) = df.shape
 
     with pm.Model() as model:
