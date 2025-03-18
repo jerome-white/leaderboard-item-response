@@ -1,6 +1,9 @@
 datasets
 fsspec
 huggingface_hub
+jax[cuda12.2]
 numpy
+numpyro
 pandas
+pymc
 requests
