@@ -6,6 +6,7 @@ source $GIT_ROOT/config.rc || exit 1
 _responses=$SCRATCH/var/responses
 _questions=$SCRATCH/var/questions
 _results=$SCRATCH/opt
+_aggregate=aggregate-data
 
 while getopts 's:h' option; do
     case $option in
@@ -28,7 +29,7 @@ EOF
     esac
 done
 
-huggingface-cli login --token $HF_BEARER_TOKEN &> /dev/null || exit 1
+# huggingface-cli login --token $HF_BEARER_TOKEN &> /dev/null || exit 1
 
 case $_step in
     1) # Hugging Face download
@@ -43,7 +44,6 @@ case $_step in
     2) # Stan preparation
 	src=$GIT_ROOT/src/model
 	tmp=`mktemp`
-	script=aggregate-data
 
 	for i in $GIT_ROOT/src/experiments/*.py; do
 	    python $i --output $_results \
@@ -51,8 +51,8 @@ case $_step in
 		echo "[ `date` ] $REPLY" 1>&2
 		out=`dirname $REPLY`
 
-		agg=$out/${script}.csv
-		python $src/${script}.py \
+		agg=$out/${_aggregate}.csv
+		python $src/${_aggregate}.py \
 		       --data-root $_responses \
 		       --question-bank $_questions \
 		       --experiment $REPLY > $agg
@@ -72,27 +72,13 @@ EOF
 	;;
     3) # Stan sampling
 	src=$GIT_ROOT/src/model
-	for d in $SCRATCH/opt/*; do
-	    echo "[ START `date` ] $d" 1>&2
-
-	    output=$d/output
-	    summary=$d/summary.csv
-	    mkdir $output 2> /dev/null || rm --recursive --force $output/*
-	    rm --force $summary
-
-	    (cd $CMDSTAN && make --jobs=`nproc` $src/model) || exit 1
-	    $src/model \
-		sample \
-		num_samples=$STAN_SAMPLES \
-		num_warmup=$STAN_WARMUP \
-		num_chains=$STAN_WORKERS \
-		data \
-		file=$d/stan.json \
-		output \
-		file=$output/chain.csv \
-		num_threads=$STAN_WORKERS \
-		&& stansummary --csv_filename=$summary $output/*.csv
-
+	find $SCRATCH/opt -name "${_aggregate}*" \
+	    | while read; do
+	    i=`dirname $REPLY`
+	    echo "[ START `date` ] $i" 1>&2
+	    python $src/irt-model.py \
+		   --data-file $REPLY \
+		   --output $i/samples.nc
 	done
 	;;
     4) # Hugging Face upload
