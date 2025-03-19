@@ -76,9 +76,10 @@ EOF
 	    | while read; do
 	    i=`dirname $REPLY`
 	    echo "[ START `date` ] $i" 1>&2
-	    python $src/irt-model.py \
+	    python $src/to-pymc.py \
 		   --data-file $REPLY \
-		   --output $i/samples.nc
+		   --save-metadata $i/metadata.json \
+		| python $src/irt-model.py --output $i/samples.nc
 	done
 	;;
     4) # Hugging Face upload

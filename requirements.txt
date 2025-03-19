@@ -1,7 +1,7 @@
 datasets
 fsspec
 huggingface_hub
-jax[cuda12.2]
+jax[cuda12.6]
 numpy
 numpyro
 pandas

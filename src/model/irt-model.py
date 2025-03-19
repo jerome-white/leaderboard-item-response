@@ -1,3 +1,4 @@
+import sys
 from pathlib import Path
 from argparse import ArgumentParser
 
@@ -7,20 +8,17 @@ import pymc.sampling.jax as pmjax
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
-    arguments.add_argument('--data-file', type=Path)
     arguments.add_argument('--output', type=Path)
     arguments.add_argument('--seed', type=int)
     args = arguments.parse_args()
 
-    df = (pd
-          .read_csv(args.data_file,
-                    compression='gzip',
-                    memory_map=True)
-          .pivot(index=['author', 'model'],
-                 columns='document',
-                 values='score')
-          .dropna(axis='columns'))
+    df = pd.read_csv(sys.stdin, index_col=['author', 'model'])
     (persons, items) = df.shape
+
+    if pmjax.jax.local_device_count() == 1:
+        chain_method = 'vectorized'
+    else:
+        chain_method = 'parallel'
 
     with pm.Model() as model:
         # Priors
@@ -39,8 +37,9 @@ if __name__ == '__main__':
         )
 
         trace = pmjax.sample_numpyro_nuts(
-            # chain_method='vectorized',
+            chain_method=chain_method,
             random_seed=args.seed,
+            # target_accept=0.9,
             idata_kwargs={
                 'log_likelihood': False,
             }
