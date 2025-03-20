@@ -24,26 +24,26 @@ def func(args):
 
 def each(args):
     categories = {
-        'humanities': [
+        '_humanities': [
             'history',
             'law',
             'philosophy',
         ],
-        'social science': [
+        '_social science': [
             'economics',
             'psychology',
         ],
-        'natural science': [
+        '_natural science': [
             'biology',
             'chemistry',
             'physics',
         ],
-        'formal science': [
+        '_formal science': [
             'computer science',
             'engineering',
             'math',
         ],
-        'applied science': [
+        '_applied science': [
             'business',
             'health',
         ],
