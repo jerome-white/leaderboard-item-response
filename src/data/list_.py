@@ -1,16 +1,89 @@
 import sys
 import csv
 import time
+from typing import ClassVar
 from pathlib import Path
 from datetime import datetime
 from argparse import ArgumentParser
-from dataclasses import dataclass, asdict, fields
+from dataclasses import dataclass, asdict, fields, replace, astuple
 from multiprocessing import Pool, Queue
 
+from datasets import load_dataset
 from huggingface_hub import HfApi, HfFileSystem
 
 from mylib import Logger, Backoff, DatasetPathHandler
 
+#
+#
+#
+@dataclass(frozen=True)
+class Dataset:
+    namespace: str
+    name: str
+    _sep: ClassVar[str] = '/'
+
+    def __str__(self):
+        return self._sep.join(astuple(self))
+
+    @classmethod
+    def from_fullname(cls, fullname):
+        names = fullname.split(cls._sep, maxsplit=1)
+        return cls(*names)
+
+    @classmethod
+    def from_leaderboard(cls, fullname, author):
+        prefix = f'{author}{cls._sep}'
+        fullname = (fullname
+                    .removeprefix(prefix)
+                    .replace('__', cls._sep, count=1))
+
+        return cls.from_fullname(fullname)
+
+class ModelIterator:
+    _dtype = '-details'
+
+    def __init__(self, author):
+        self.author = author
+        self.api = HfApi()
+
+    def __iter__(self):
+        datasets = self.api.list_datasets(
+            author=self.author,
+            search=self._dtype,
+        )
+        for info in datasets:
+            ds = Dataset.from_leaderboard(info.id, self.author)
+            if self.is_legal(ds):
+                yield info
+
+    def is_legal(self, dataset):
+        raise NotImplementedError()
+
+class AllModels(ModelIterator):
+    def is_legal(self, dataset):
+        return True
+
+class UnflaggedModels(ModelIterator):
+    @staticmethod
+    def flagged(dataset):
+        for row in load_dataset(str(dataset), split='train'):
+            if row['Flagged']:
+                yield Dataset.from_fullname(row['fullname'])
+
+    def __init__(self, author):
+        super().__init__(author)
+        dataset = Dataset(self.author, 'contents')
+        self.datasets = set(self.flagged(dataset))
+
+    def is_legal(self, dataset):
+        name = dataset.name.removesuffix(self._dtype)
+        ds = replace(dataset, name=name)
+
+        return ds not in self.datasets
+
+#
+#
+#
 @dataclass
 class Result:
     path: Path
@@ -55,6 +128,9 @@ class DatasetFileSystem:
                         date = j['last_commit'].date
                         yield Result(path, date)
 
+#
+#
+#
 def func(incoming, outgoing, args):
     fs = DatasetFileSystem(Backoff(args.backoff, 0.1))
     results = {}
@@ -81,11 +157,12 @@ def records(args):
     )
 
     with Pool(args.workers, func, initargs):
-        api = HfApi()
+        Models = UnflaggedModels if args.exclude_flagged else AllModels
+        models = Models(args.author)
 
         jobs = 0
-        for i in api.list_datasets(author=args.author, search='-details'):
-            outgoing.put(Path(i.id))
+        for m in models:
+            outgoing.put(Path(m.id))
             jobs += 1
 
         for _ in range(jobs):
@@ -96,6 +173,7 @@ if __name__ == '__main__':
     arguments = ArgumentParser()
     arguments.add_argument('--author', default='open-llm-leaderboard')
     arguments.add_argument('--backoff', type=float, default=15)
+    arguments.add_argument('--exclude-flagged', action='store_true')
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
