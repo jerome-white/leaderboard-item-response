@@ -12,20 +12,26 @@ from mylib import Dataset, Logger, SubmissionInfo
 class Submission:
     path: Path
     date: pd.Timestamp
-    _root: ClassVar[tuple] = ('samples', 'leaderboard')
+    _root: ClassVar[tuple] = (
+        'samples',
+        'leaderboard',
+    )
 
     def __post_init__(self):
         self.path = Path(self.path)
         self.date = pd.to_datetime(self.date)
+        self.n = len(self._root)
 
     def to_sample(self):
         (*_, info, name) = self.path.parts
         dataset = Dataset.from_flattened(info)
-
         parts = name.split('_')
-        if tuple(parts[:len(self._root)]) != self._root:
+
+        root = tuple(parts[:self.n])
+        if root != self._root:
             raise ValueError(name)
-        (*rest, _timestamp) = parts[len(self._root):]
+
+        (*rest, _timestamp) = parts[self.n:]
         (benchmark, *subject) = rest
         subject = '_'.join(subject)
 
