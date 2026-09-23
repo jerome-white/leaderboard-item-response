@@ -9,7 +9,7 @@ from multiprocessing import Pool, Queue
 
 import pandas as pd
 
-from mylib import Logger, Experiment, SubmissionInfo, Document
+from mylib import Logger, Experiment, SubmissionInfo, Document, question_bank_path
 
 #
 #
@@ -128,10 +128,7 @@ def func(incoming, outgoing, experiment, args):
 
         rel = path.relative_to(args.data_root)
         info = SubmissionInfo.from_path(rel, '.csv.gz')
-        documents = (args
-                     .question_bank
-                     .joinpath(experiment.benchmark, info.subject)
-                     .with_suffix('.jsonl'))
+        documents = question_bank_path(args.question_bank, experiment.benchmark, info.subject)
         handler = Handler(info, documents)
 
         for e in experiment:
