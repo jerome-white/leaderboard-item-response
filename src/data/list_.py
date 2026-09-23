@@ -1,43 +1,16 @@
 import sys
 import csv
 import time
-from typing import ClassVar
 from pathlib import Path
 from datetime import datetime
 from argparse import ArgumentParser
-from dataclasses import dataclass, asdict, fields, replace, astuple
+from dataclasses import dataclass, asdict, fields, replace
 from multiprocessing import Pool, Queue
 
 from datasets import load_dataset
 from huggingface_hub import HfApi, HfFileSystem
 
-from mylib import Logger, Backoff, DatasetPathHandler
-
-#
-#
-#
-@dataclass(frozen=True)
-class Dataset:
-    namespace: str
-    name: str
-    _sep: ClassVar[str] = '/'
-
-    def __str__(self):
-        return self._sep.join(astuple(self))
-
-    @classmethod
-    def from_fullname(cls, fullname):
-        names = fullname.split(cls._sep, maxsplit=1)
-        return cls(*names)
-
-    @classmethod
-    def from_leaderboard(cls, fullname, author):
-        prefix = f'{author}{cls._sep}'
-        fullname = (fullname
-                    .removeprefix(prefix)
-                    .replace('__', cls._sep, count=1))
-
-        return cls.from_fullname(fullname)
+from mylib import Dataset, Logger, Backoff, DatasetPathHandler
 
 class ModelIterator:
     _dtype = '-details'
