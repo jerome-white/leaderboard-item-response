@@ -31,8 +31,8 @@ class SubmissionInfo:
         return Path(*parents, model)
 
     @classmethod
-    def from_path(cls, path):
-        (model, _) = path.stem.split('.', maxsplit=1)
+    def from_path(cls, path, suffix):
+        model = path.name.removesuffix(suffix)
         return cls(*path.parent.parts, model)
 
 @dataclass

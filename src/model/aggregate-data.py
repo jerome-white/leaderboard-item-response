@@ -125,7 +125,7 @@ def func(incoming, outgoing, experiment, args):
         Logger.info(path)
 
         df = pd.read_csv(path, compression='gzip', memory_map=True)
-        info = SubmissionInfo.from_path(path.relative_to(args.data_root))
+        info = SubmissionInfo.from_path(path.relative_to(args.data_root), '.csv.gz')
         documents = (args
                      .question_bank
                      .joinpath(experiment.benchmark, info.subject)
