@@ -46,7 +46,7 @@ def extract(db, fp):
     reader = csv.DictReader(fp)
     for row in reader:
         (info, date) = parser(row)
-        if info in db and db[info] <= date:
+        if info in db and db[info] >= date:
             Logger.warning('skipping %s', info.to_path())
             continue
         yield row
