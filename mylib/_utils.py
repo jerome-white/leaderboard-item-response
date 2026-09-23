@@ -1,6 +1,7 @@
 import json
 import random
 import functools as ft
+from typing import ClassVar
 from pathlib import Path
 from dataclasses import dataclass, field, astuple
 from urllib.parse import ParseResult, urlunparse
@@ -18,6 +19,32 @@ class Document:
                 yield cls(**doc)
 
 @dataclass(frozen=True)
+class Dataset:
+    namespace: str
+    name: str
+    _sep: ClassVar[str] = '/'
+
+    def __str__(self):
+        return self._sep.join(astuple(self))
+
+    @classmethod
+    def from_fullname(cls, fullname):
+        names = fullname.split(cls._sep, maxsplit=1)
+        if len(names) != 2:
+            raise ValueError(fullname)
+        return cls(*names)
+
+    @classmethod
+    def from_flattened(cls, name):
+        return cls.from_fullname(name.replace('__', cls._sep, 1))
+
+    @classmethod
+    def from_leaderboard(cls, fullname, author):
+        prefix = f'{author}{cls._sep}'
+        name = fullname.removeprefix(prefix)
+        return cls.from_flattened(name)
+
+@dataclass(frozen=True)
 class SubmissionInfo:
     benchmark: str
     subject: str
@@ -25,14 +52,14 @@ class SubmissionInfo:
     model: str
 
     def to_path(self, suffix=None):
-        path = Path(*astuple(self))
+        (*parents, model) = astuple(self)
         if suffix is not None:
-            path = path.with_suffix(suffix)
-        return path
+            model += suffix
+        return Path(*parents, model)
 
     @classmethod
-    def from_path(cls, path):
-        (model, _) = path.stem.split('.', maxsplit=1)
+    def from_path(cls, path, suffix):
+        model = path.name.removesuffix(suffix)
         return cls(*path.parent.parts, model)
 
 @dataclass
