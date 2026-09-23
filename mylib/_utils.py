@@ -25,10 +25,10 @@ class SubmissionInfo:
     model: str
 
     def to_path(self, suffix=None):
-        path = Path(*astuple(self))
+        (*parents, model) = astuple(self)
         if suffix is not None:
-            path = path.with_suffix(suffix)
-        return path
+            model += suffix
+        return Path(*parents, model)
 
     @classmethod
     def from_path(cls, path):
