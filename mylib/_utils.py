@@ -62,6 +62,9 @@ class SubmissionInfo:
         model = path.name.removesuffix(suffix)
         return cls(*path.parent.parts, model)
 
+def question_bank_path(root, benchmark, subject):
+    return root.joinpath(benchmark, subject + '.jsonl')
+
 @dataclass
 class Experiment:
     benchmark: str

@@ -5,5 +5,6 @@ from ._utils import (
     Experiment,
     DatasetPathHandler,
     SubmissionInfo,
+    question_bank_path,
 )
 from ._logger import Logger
