@@ -6,13 +6,13 @@ from dataclasses import dataclass, asdict
 
 import pandas as pd
 
-from mylib import Logger, SubmissionInfo
+from mylib import Dataset, Logger, SubmissionInfo
 
 @dataclass
 class Submission:
     path: Path
     date: pd.Timestamp
-    _root: ClassVar[Path] = Path('samples', 'leaderboard')
+    _root: ClassVar[tuple] = ('samples', 'leaderboard')
 
     def __post_init__(self):
         self.path = Path(self.path)
@@ -20,17 +20,18 @@ class Submission:
 
     def to_sample(self):
         (*_, info, name) = self.path.parts
-        (author, model) = info.split('__')
-        path = Path(*name.split('_'))
-        (benchmark, *subject) = (path
-                                 .relative_to(self._root)
-                                 .parent
-                                 .parts)
+        dataset = Dataset.from_flattened(info)
+
+        parts = name.split('_')
+        if tuple(parts[:len(self._root)]) != self._root:
+            raise ValueError(name)
+        (*rest, _timestamp) = parts[len(self._root):]
+        (benchmark, *subject) = rest
         subject = '_'.join(subject)
 
         return SubmissionInfo(
-            author=author,
-            model=model,
+            author=dataset.namespace,
+            model=dataset.name,
             benchmark=benchmark,
             subject=subject,
         )
