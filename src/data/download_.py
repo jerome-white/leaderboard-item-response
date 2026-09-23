@@ -18,7 +18,7 @@ import pandas as pd
 from requests import HTTPError
 from huggingface_hub.utils import GatedRepoError, build_hf_headers
 
-from mylib import Logger, DatasetPathHandler, SubmissionInfo, Document
+from mylib import Logger, DatasetPathHandler, SubmissionInfo, Document, question_bank_path
 
 #
 # Types and functions to evaluation scores. Create new `to_float`s to
@@ -50,7 +50,8 @@ class Result:
 #
 @dataclass
 class DocumentBank:
-    name: Path
+    benchmark: str
+    subject: str
     documents: list = field(default_factory=list)
 
     def __iter__(self):
@@ -62,10 +63,7 @@ class DocumentAggregator:
         self.history = cl.defaultdict(set)
 
     def __call__(self, dbank):
-        output = (self
-                  .destination
-                  .joinpath(dbank.name)
-                  .with_suffix('.jsonl'))
+        output = question_bank_path(self.destination, dbank.benchmark, dbank.subject)
         history = self.setup_and_load(output)
 
         with output.open('a') as fp:
@@ -198,8 +196,7 @@ def func(incoming, outgoing, args):
             out.parent.mkdir(parents=True, exist_ok=True)
             df.to_csv(out, index=False, compression='gzip')
 
-        name = Path(info.benchmark, info.subject)
-        dbank = DocumentBank(name, reader.documents)
+        dbank = DocumentBank(info.benchmark, info.subject, reader.documents)
         outgoing.put(dbank)
 
 if __name__ == '__main__':
