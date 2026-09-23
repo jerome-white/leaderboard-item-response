@@ -1,7 +1,20 @@
 import unittest
 from pathlib import Path
 
-from mylib import Dataset, SubmissionInfo
+from mylib import Dataset, SubmissionInfo, question_bank_path
+
+class QuestionBankPathTestCase(unittest.TestCase):
+    def test_appends_suffix_to_dotted_subject(self):
+        self.assertEqual(
+            question_bank_path(Path('questions'), 'mmlu', 'u.s._history'),
+            Path('questions', 'mmlu', 'u.s._history.jsonl'),
+        )
+
+    def test_appends_suffix_to_plain_subject(self):
+        self.assertEqual(
+            question_bank_path(Path('questions'), 'bbh', '_'),
+            Path('questions', 'bbh', '_.jsonl'),
+        )
 
 class DatasetTestCase(unittest.TestCase):
     def test_from_fullname_splits_namespace_and_name(self):
