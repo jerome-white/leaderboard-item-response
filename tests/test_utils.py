@@ -2,7 +2,37 @@ import unittest
 import tempfile
 from pathlib import Path
 
-from mylib import Dataset, Document, QuestionBank, SubmissionInfo
+from mylib import Dataset, DatasetPathHandler, Document, QuestionBank, SubmissionInfo
+
+class DatasetPathHandlerTestCase(unittest.TestCase):
+    def test_strip_netloc_removes_prefix_when_present(self):
+        handler = DatasetPathHandler()
+        path = Path('datasets', 'open-llm-leaderboard', 'contents')
+        self.assertEqual(
+            handler.strip_netloc(path),
+            Path('open-llm-leaderboard', 'contents'),
+        )
+
+    def test_strip_netloc_is_noop_when_prefix_absent(self):
+        handler = DatasetPathHandler()
+        path = Path('open-llm-leaderboard', 'contents')
+        self.assertEqual(handler.strip_netloc(path), path)
+
+    def test_repo_parts_extracts_owner_and_repo(self):
+        handler = DatasetPathHandler()
+        path = Path(
+            'datasets', 'open-llm-leaderboard', 'BoltMonkey__Neural-details',
+            'BoltMonkey__Neural', 'samples_leaderboard_bbh_2024.json',
+        )
+        self.assertEqual(
+            handler.repo_parts(path),
+            ('open-llm-leaderboard', 'BoltMonkey__Neural-details'),
+        )
+
+    def test_repo_parts_accepts_a_string(self):
+        handler = DatasetPathHandler()
+        path = 'datasets/open-llm-leaderboard/contents'
+        self.assertEqual(handler.repo_parts(path), ('open-llm-leaderboard', 'contents'))
 
 class QuestionBankTestCase(unittest.TestCase):
     def test_path_appends_suffix_to_dotted_subject(self):
