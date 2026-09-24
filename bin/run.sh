@@ -42,7 +42,7 @@ _questions=$_output/var/questions
 _results=$_output/opt
 _src=$ROOT/src
 
-huggingface-cli login --token $HF_BEARER_TOKEN &> /dev/null || exit 1
+hf auth login --token $HF_BEARER_TOKEN &> /dev/null || exit 1
 
 case $_step in
     1) # Hugging Face download
