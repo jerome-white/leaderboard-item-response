@@ -1,9 +1,11 @@
 from ._utils import (
     Backoff,
     Dataset,
-    Document,
-    Experiment,
     DatasetPathHandler,
+    Document,
+    DocumentBank,
+    Experiment,
+    QuestionBank,
     SubmissionInfo,
 )
 from ._logger import Logger

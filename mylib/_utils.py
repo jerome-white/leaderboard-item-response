@@ -3,20 +3,41 @@ import random
 import functools as ft
 from typing import ClassVar
 from pathlib import Path
-from dataclasses import dataclass, field, astuple
+from dataclasses import dataclass, field, astuple, asdict
 from urllib.parse import ParseResult, urlunparse
+from collections.abc import Iterable, Iterator
 
 @dataclass
 class Document:
     question: str
     content: dict
 
-    @classmethod
-    def scanf(cls, path):
-        with path.open() as fp:
+@dataclass
+class DocumentBank:
+    benchmark: str
+    subject: str
+    documents: list = field(default_factory=list)
+
+    def __iter__(self):
+        yield from self.documents
+
+class QuestionBank:
+    _suffix = '.jsonl'
+
+    def __init__(self, root, benchmark, subject):
+        fname = f'{subject}{self._suffix}'
+        self.path = root.joinpath(benchmark, fname)
+
+    def __iter__(self) -> Iterator[Document]:
+        with self.path.open() as fp:
             for line in fp:
                 doc = json.loads(line)
-                yield cls(**doc)
+                yield Document(**doc)
+
+    def printf(self, documents: Iterable[Document]) -> None:
+        with self.path.open('a') as fp:
+            for d in documents:
+                print(json.dumps(asdict(d)), file=fp)
 
 @dataclass(frozen=True)
 class Dataset:

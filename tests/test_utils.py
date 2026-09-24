@@ -1,7 +1,28 @@
 import unittest
+import tempfile
 from pathlib import Path
 
-from mylib import Dataset, SubmissionInfo
+from mylib import Dataset, Document, QuestionBank, SubmissionInfo
+
+class QuestionBankTestCase(unittest.TestCase):
+    def test_path_appends_suffix_to_dotted_subject(self):
+        qbank = QuestionBank(Path('questions'), 'mmlu', 'u.s._history')
+        self.assertEqual(qbank.path, Path('questions', 'mmlu', 'u.s._history.jsonl'))
+
+    def test_path_appends_suffix_to_plain_subject(self):
+        qbank = QuestionBank(Path('questions'), 'bbh', '_')
+        self.assertEqual(qbank.path, Path('questions', 'bbh', '_.jsonl'))
+
+    def test_printf_then_iter_round_trips_documents(self):
+        documents = [
+            Document('q1', {'doc': 'a'}),
+            Document('q2', {'doc': 'b'}),
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            qbank = QuestionBank(Path(tmp), 'mmlu', 'u.s._history')
+            qbank.path.parent.mkdir(parents=True, exist_ok=True)
+            qbank.printf(documents)
+            self.assertEqual(list(qbank), documents)
 
 class DatasetTestCase(unittest.TestCase):
     def test_from_fullname_splits_namespace_and_name(self):

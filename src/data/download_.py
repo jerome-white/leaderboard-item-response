@@ -8,9 +8,10 @@ import collections as cl
 from typing import SupportsFloat
 from pathlib import Path
 from argparse import ArgumentParser
-from dataclasses import dataclass, field, fields, asdict, replace
+from dataclasses import dataclass, fields, asdict, replace
 from urllib.parse import ParseResult, urlunparse
 from multiprocessing import Pool, Queue
+from collections.abc import Iterator
 
 import fsspec
 import requests
@@ -18,7 +19,14 @@ import pandas as pd
 from requests import HTTPError
 from huggingface_hub.utils import GatedRepoError, build_hf_headers
 
-from mylib import Logger, DatasetPathHandler, SubmissionInfo, Document
+from mylib import (
+    DatasetPathHandler,
+    Document,
+    DocumentBank,
+    Logger,
+    QuestionBank,
+    SubmissionInfo,
+)
 
 #
 # Types and functions to evaluation scores. Create new `to_float`s to
@@ -48,39 +56,34 @@ class Result:
 #
 #
 #
-@dataclass
-class DocumentBank:
-    name: Path
-    documents: list = field(default_factory=list)
-
-    def __iter__(self):
-        yield from self.documents
-
 class DocumentAggregator:
     def __init__(self, destination):
         self.destination = destination
         self.history = cl.defaultdict(set)
+            
+    def __call__(self, dbank: DocumentBank) -> None:
+        qbank = QuestionBank(self.destination, dbank.benchmark, dbank.subject)
+        history = self.setup_and_load(qbank)
+        qbank.printf(self.documents(dbank, history))
 
-    def __call__(self, dbank):
-        output = (self
-                  .destination
-                  .joinpath(dbank.name)
-                  .with_suffix('.jsonl'))
-        history = self.setup_and_load(output)
+    def documents(
+            self,
+            dbank: DocumentBank,
+            history: set,
+    ) -> Iterator[Document]:
+        for doc in dbank:
+            if doc.question not in history:
+                yield doc
+                history.add(doc.question)
 
-        with output.open('a') as fp:
-            for d in dbank:
-                if d.question not in history:
-                    print(json.dumps(asdict(d)), file=fp)
-                    history.add(d.question)
+    def setup_and_load(self, qbank: QuestionBank) -> set:
+        history = self.history[qbank.path]
 
-    def setup_and_load(self, output):
-        history = self.history[output]
-        if not output.exists():
-            output.parent.mkdir(parents=True, exist_ok=True)
+        if not qbank.path.exists():
+            qbank.path.parent.mkdir(parents=True, exist_ok=True)
         elif not history:
-            for d in Document.scanf(output):
-                history.add(d.question)
+            for doc in qbank:
+                history.add(doc.question)
 
         return history
 
@@ -198,8 +201,7 @@ def func(incoming, outgoing, args):
             out.parent.mkdir(parents=True, exist_ok=True)
             df.to_csv(out, index=False, compression='gzip')
 
-        name = Path(info.benchmark, info.subject)
-        dbank = DocumentBank(name, reader.documents)
+        dbank = DocumentBank(info.benchmark, info.subject, reader.documents)
         outgoing.put(dbank)
 
 if __name__ == '__main__':
