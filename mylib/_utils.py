@@ -104,17 +104,24 @@ class DatasetPathHandler:
             kwargs.setdefault(i, None)
         self.url = ParseResult(**kwargs)
 
+    def strip_netloc(self, path):
+        try:
+            return path.relative_to(self._netloc)
+        except ValueError:
+            return path
+
+    def repo_parts(self, path):
+        if isinstance(path, str):
+            path = Path(path)
+        return self.strip_netloc(path).parts[:2]
+
     @ft.singledispatchmethod
     def to_url(self, path):
         raise TypeError(type(path))
 
     @to_url.register
     def _(self, path: Path):
-        try:
-            path = path.relative_to(self._netloc)
-        except ValueError:
-            pass
-
+        path = self.strip_netloc(path)
         return self.url._replace(path=str(path))
 
     @to_url.register
