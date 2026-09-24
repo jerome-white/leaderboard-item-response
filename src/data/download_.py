@@ -97,6 +97,9 @@ class DatasetAccessRequestor:
     }
     _endpoint = 'ask-access'
 
+    def __init__(self):
+        self.path = DatasetPathHandler()
+
     def __call__(self, path):
         target = urlunparse(self.to_url(path))
         headers = build_hf_headers()
@@ -105,10 +108,10 @@ class DatasetAccessRequestor:
         response.raise_for_status()
 
     def to_url(self, path):
-        body = path.parts[:3]
-        path = Path(*body, 'ask-access')
+        parts = self.path.repo_parts(path)
+        body = Path(DatasetPathHandler._netloc, *parts, self._endpoint)
 
-        kwargs = dict(self._url, path=str(path))
+        kwargs = dict(self._url, path=str(body))
         for i in ParseResult._fields:
             kwargs.setdefault(i, None)
 
