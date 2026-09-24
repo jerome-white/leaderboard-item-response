@@ -1,0 +1,12 @@
+[project]
+name = "leaderboard-item-response"
+version = "1.0.0"
+requires-python = ">=3.13,<3.14"
+dependencies = [
+    "datasets",
+    "fsspec",
+    "huggingface_hub",
+    "numpy",
+    "pandas",
+    "requests",
+]
