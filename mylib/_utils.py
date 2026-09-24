@@ -58,7 +58,7 @@ class Dataset:
 
     @classmethod
     def from_flattened(cls, name):
-        sep = self._unknown * 2
+        sep = cls._unknown * 2
         if sep not in name:
             return cls(cls._unknown, name)
         fullname = name.replace(sep, cls._sep, 1)
