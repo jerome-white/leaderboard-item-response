@@ -72,6 +72,14 @@ class DatasetTestCase(unittest.TestCase):
         self.assertEqual(Dataset.from_leaderboard(fullname, 'open-llm-leaderboard'),
                           Dataset('BoltMonkey', 'NeuralDaredevil-7B-details'))
 
+    def test_from_flattened_without_double_underscore_uses_placeholder_namespace(self):
+        self.assertEqual(Dataset.from_flattened('gpt2-details'), Dataset('_', 'gpt2-details'))
+
+    def test_from_leaderboard_without_double_underscore_uses_placeholder_namespace(self):
+        fullname = 'open-llm-leaderboard/gpt2-details'
+        self.assertEqual(Dataset.from_leaderboard(fullname, 'open-llm-leaderboard'),
+                          Dataset('_', 'gpt2-details'))
+
 class SubmissionInfoPathTestCase(unittest.TestCase):
     def test_to_path_appends_suffix_to_dotted_model_name(self):
         info = SubmissionInfo('bbh', 'boolean_expressions', 'upstage', 'SOLAR-10.7B-v1.0')
