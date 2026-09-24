@@ -1,6 +1,7 @@
 import sys
 import csv
 import json
+import time
 import itertools as it
 import functools as ft
 import statistics as st
@@ -20,6 +21,7 @@ from requests import HTTPError
 from huggingface_hub.utils import GatedRepoError, build_hf_headers
 
 from mylib import (
+    Backoff,
     DatasetPathHandler,
     Document,
     DocumentBank,
@@ -120,29 +122,37 @@ class DatasetAccessRequestor:
         return ParseResult(**kwargs)
 
 class HfFileReader:
-    def __init__(self):
+    def __init__(self, backoff, retries):
         self.ask = DatasetAccessRequestor()
         self.path = DatasetPathHandler()
+        self.backoff = backoff
+        self.retries = retries
 
     def __call__(self, target):
         url = self.path.to_string(target)
-        for i in it.count():
+        asked = False
+        last_err = None
+
+        for delay in it.islice(self.backoff, self.retries):
             try:
                 with fsspec.open(url) as fp:
                     for line in fp:
                         yield json.loads(line)
-                break
+                return
             except GatedRepoError as err:
-                if i:
-                    raise PermissionError(target) from err
+                last_err = err
                 Logger.error(url)
+                if not asked:
+                    try:
+                        self.ask(target)
+                    except HTTPError as herr:
+                        raise PermissionError(target) from herr
+                    asked = True
+                time.sleep(delay)
             except Exception as err:
                 raise ConnectionError(target) from err
 
-            try:
-                self.ask(target)
-            except HTTPError as err:
-                raise PermissionError(target) from err
+        raise PermissionError(target) from last_err
 
 class SubmissionReader:
     _document_keys = (
@@ -182,7 +192,7 @@ class SubmissionReader:
 #
 #
 def func(incoming, outgoing, args):
-    hf_reader = HfFileReader()
+    hf_reader = HfFileReader(Backoff(args.backoff, 0.1), args.retries)
     keys = [ x.name for x in fields(SubmissionInfo) ]
 
     while True:
@@ -213,6 +223,8 @@ if __name__ == '__main__':
     arguments = ArgumentParser()
     arguments.add_argument('--output', type=Path)
     arguments.add_argument('--question-bank', type=Path)
+    arguments.add_argument('--backoff', type=float, default=2)
+    arguments.add_argument('--retries', type=int, default=3)
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
