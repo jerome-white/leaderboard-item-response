@@ -27,6 +27,14 @@ class SubmissionToSampleTestCase(unittest.TestCase):
         self.assertEqual(sample.benchmark, 'mmlu')
         self.assertEqual(sample.subject, 'anatomy')
 
+    def test_canonical_model_with_no_author_uses_placeholder(self):
+        path = 'x/gpt2/samples_leaderboard_bbh_2024-06-02T21-55-15.json'
+        sample = self.make(path).to_sample()
+        self.assertEqual(sample.author, '_')
+        self.assertEqual(sample.model, 'gpt2')
+        self.assertEqual(sample.benchmark, 'bbh')
+        self.assertEqual(sample.subject, '')
+
     def test_mismatched_root_raises_value_error(self):
         path = 'x/foo__bar/results_2024-06-02T21-55-15.json'
         with self.assertRaises(ValueError):

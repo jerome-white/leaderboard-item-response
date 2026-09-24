@@ -44,6 +44,7 @@ class Dataset:
     namespace: str
     name: str
     _sep: ClassVar[str] = '/'
+    _unknown: ClassVar[str] = '_'
 
     def __str__(self):
         return self._sep.join(astuple(self))
@@ -57,6 +58,8 @@ class Dataset:
 
     @classmethod
     def from_flattened(cls, name):
+        if '__' not in name:
+            return cls(cls._unknown, name)
         return cls.from_fullname(name.replace('__', cls._sep, 1))
 
     @classmethod
