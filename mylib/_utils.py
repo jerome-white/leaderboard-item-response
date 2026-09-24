@@ -58,9 +58,12 @@ class Dataset:
 
     @classmethod
     def from_flattened(cls, name):
-        if '__' not in name:
+        sep = self._unknown * 2
+        if sep not in name:
             return cls(cls._unknown, name)
-        return cls.from_fullname(name.replace('__', cls._sep, 1))
+        fullname = name.replace(sep, cls._sep, 1)
+
+        return cls.from_fullname(fullname)
 
     @classmethod
     def from_leaderboard(cls, fullname, author):
