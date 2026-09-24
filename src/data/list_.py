@@ -64,7 +64,7 @@ class Result:
 
     def __repr__(self):
         (*prefix, _) = self.path.stem.split('_')
-        return str(Path(*prefix))
+        return '/'.join(prefix)
 
     def __lt__(self, other):
         return self.date < other.date
