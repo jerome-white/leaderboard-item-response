@@ -60,7 +60,7 @@ class DocumentAggregator:
     def __init__(self, destination):
         self.destination = destination
         self.history = cl.defaultdict(set)
-            
+
     def __call__(self, dbank: DocumentBank) -> None:
         qbank = QuestionBank(self.destination, dbank.benchmark, dbank.subject)
         history = self.setup_and_load(qbank)
