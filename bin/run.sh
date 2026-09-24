@@ -1,15 +1,23 @@
 #!/bin/bash
 
-export GIT_ROOT=`git rev-parse --show-toplevel`
-source $GIT_ROOT/config.rc || exit 1
+ROOT=`git rev-parse --show-toplevel`
+HF_SAMPLES=0.5
+STAN_SAMPLES=1000
+STAN_WARMUP=500
+STAN_WORKERS=`nproc`
+CMDSTAN=
 
-_responses=$SCRATCH/var/responses
-_questions=$SCRATCH/var/questions
-_results=$SCRATCH/opt
+export PYTHONPATH=$ROOT
+export HF_DATASETS_DISABLE_PROGRESS_BARS=1
+export NUMEXPR_MAX_THREADS=`nproc`
 
-while getopts 's:h' option; do
+source $HOME/.keys/hf
+
+while getopts 's:o:t:h' option; do
     case $option in
         s) _step=$OPTARG ;;
+	o) _output=$OPTARG ;;
+	t) _hf_target=$OPTARG ;;
         h)
             cat <<EOF
 Usage: $0
@@ -28,11 +36,16 @@ EOF
     esac
 done
 
+_responses=$_output/var/responses
+_questions=$_output/var/questions
+_results=$_output/opt
+_src=$ROOT/src
+
 huggingface-cli login --token $HF_BEARER_TOKEN &> /dev/null || exit 1
 
 case $_step in
     1) # Hugging Face download
-        src=$GIT_ROOT/src/data
+        src=$_src/data
         python $src/list_.py --exclude-flagged \
             | python $src/gather_.py \
             | python $src/reduce_.py --corpus $_responses \
@@ -41,11 +54,11 @@ case $_step in
                      --question-bank $_questions
         ;;
     2) # Stan preparation
-        src=$GIT_ROOT/src/model
+        src=$_src/model
         tmp=`mktemp`
         script=aggregate-data
 
-        for i in $GIT_ROOT/src/experiments/*.py; do
+        for i in $_src/experiments/*.py; do
             python $i --output $_results \
                 | while read; do
                 echo "[ `date` ] $REPLY" 1>&2
@@ -71,8 +84,8 @@ EOF
         rm $tmp
         ;;
     3) # Stan sampling
-        src=$GIT_ROOT/src/model
-        find $SCRATCH/opt -name 'stan.json' \
+        src=$_src/model
+        find $_results -name 'stan.json' \
             | while read; do
             d=`dirname $REPLY`
             echo "[ START `date` ] $d" 1>&2
@@ -98,17 +111,18 @@ EOF
         done
         ;;
     4) # Hugging Face upload
-        for i in $SCRATCH/opt/*; do
+        for i in $_results/*; do
             if [ -e $i/summary.csv ]; then
                 echo "[ `date` ] $i" 1>&2
                 split=`basename $i`
                 cat <<EOF
-python $src/from-stan.py $sample \
+python $_src/analysis/from-stan.py \
+       --sample $HF_SAMPLES \
        --stan-output $i/output \
        --parameters $i/variables.json \
-    | python $src/push-to-hub.py \
+    | python $_src/index/push-to-hub.py \
              --split $split \
-             --target $HF_DATASETS_TARGET_
+             --target $_hf_target
 EOF
             fi
         done | parallel --will-cite --line-buffer
@@ -116,10 +130,3 @@ EOF
     *)
         ;;
 esac
-
-#
-# Shutdown
-#
-if [ $EC2_INSTANCE_ID_ ]; then
-    aws ec2 stop-instances --instance-id $EC2_INSTANCE_ID_
-fi
