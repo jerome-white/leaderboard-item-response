@@ -5,7 +5,7 @@ requires-python = ">=3.13,<3.14"
 dependencies = [
     "datasets",
     "fsspec",
-    "huggingface_hub",
+    "huggingface_hub>=1.1.7",
     "numpy",
     "pandas",
     "requests",
