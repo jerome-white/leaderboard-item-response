@@ -75,6 +75,16 @@ class DatasetFileSystem:
         self.fs = HfFileSystem(expand_info=True)
         self.path = DatasetPathHandler()
 
+    @staticmethod
+    def retry_after(err):
+        response = getattr(err, 'response', None)
+        if response is None:
+            return None
+        value = response.headers.get('Retry-After')
+        if value is None or not value.isdigit():
+            return None
+        return int(value)
+
     def ls(self, target):
         target = self.path.to_string(target)
         for (i, j) in enumerate(self.backoff, 1):
@@ -82,14 +92,15 @@ class DatasetFileSystem:
                 yield from self.fs.ls(target)
                 break
             except Exception as err:
+                delay = self.retry_after(err) or j
                 Logger.error(
                     '%s: %s (attempt=%d, backoff=%ds)',
                     type(err).__name__,
                     err,
                     i,
-                    j,
+                    delay,
                 )
-            time.sleep(j)
+            time.sleep(delay)
 
     def walk(self, target):
         for i in self.ls(target):
