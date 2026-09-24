@@ -18,21 +18,21 @@ class DatasetPathHandlerTestCase(unittest.TestCase):
         path = Path('open-llm-leaderboard', 'contents')
         self.assertEqual(handler.strip_netloc(path), path)
 
-    def test_repo_parts_extracts_owner_and_repo(self):
+    def test_relative_to_extracts_repo_path(self):
         handler = DatasetPathHandler()
         path = Path(
             'datasets', 'open-llm-leaderboard', 'BoltMonkey__Neural-details',
             'BoltMonkey__Neural', 'samples_leaderboard_bbh_2024.json',
         )
         self.assertEqual(
-            handler.repo_parts(path),
-            ('open-llm-leaderboard', 'BoltMonkey__Neural-details'),
+            handler.relative_to(path),
+            Path('datasets', 'open-llm-leaderboard', 'BoltMonkey__Neural-details'),
         )
 
-    def test_repo_parts_accepts_a_string(self):
+    def test_relative_to_requires_a_path_not_a_string(self):
         handler = DatasetPathHandler()
-        path = 'datasets/open-llm-leaderboard/contents'
-        self.assertEqual(handler.repo_parts(path), ('open-llm-leaderboard', 'contents'))
+        with self.assertRaises(AttributeError):
+            handler.relative_to('datasets/open-llm-leaderboard/contents')
 
 class QuestionBankTestCase(unittest.TestCase):
     def test_path_appends_suffix_to_dotted_subject(self):
