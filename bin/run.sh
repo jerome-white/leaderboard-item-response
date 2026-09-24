@@ -33,7 +33,7 @@ huggingface-cli login --token $HF_BEARER_TOKEN &> /dev/null || exit 1
 case $_step in
     1) # Hugging Face download
         src=$GIT_ROOT/src/data
-        python $src/list_.py \
+        python $src/list_.py --exclude-flagged \
             | python $src/gather_.py \
             | python $src/reduce_.py --corpus $_responses \
             | python $src/download_.py \
