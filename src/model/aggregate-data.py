@@ -9,7 +9,12 @@ from multiprocessing import Pool, Queue
 
 import pandas as pd
 
-from mylib import Logger, Experiment, SubmissionInfo, Document, question_bank_path
+from mylib import (
+    Experiment,
+    Logger,
+    QuestionBank,
+    SubmissionInfo,
+)
 
 #
 #
@@ -27,7 +32,12 @@ class Record:
 class BenchmarkHandler:
     _r_fields = tuple(x.name for x in fields(Record))
 
-    def __init__(self, info, documents, metric):
+    def __init__(
+            self,
+            info: SubmissionInfo,
+            documents: QuestionBank,
+            metric: str,
+    ):
         self.info = info
         self.documents = documents
         self.metric = metric
@@ -71,9 +81,9 @@ class IndexedCategoryBenchmark(BenchmarkHandler):
         self.subjects = dict(self.load(s_key))
 
     def load(self, s_key):
-        for i in Document.scanf(self.documents):
-            value = i.content['doc'][s_key]
-            yield (i.question, value)
+        for d in self.documents:
+            value = d.content['doc'][s_key]
+            yield (d.question, value)
 
     def handle(self, subject, observations):
         for o in observations:
@@ -128,7 +138,11 @@ def func(incoming, outgoing, experiment, args):
 
         rel = path.relative_to(args.data_root)
         info = SubmissionInfo.from_path(rel, '.csv.gz')
-        documents = question_bank_path(args.question_bank, experiment.benchmark, info.subject)
+        documents = QuestionBank(
+            args.question_bank,
+            experiment.benchmark,
+            info.subject,
+        )
         handler = Handler(info, documents)
 
         for e in experiment:
