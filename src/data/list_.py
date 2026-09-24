@@ -72,7 +72,7 @@ class Result:
 class DatasetFileSystem:
     def __init__(self, backoff):
         self.backoff = backoff
-        self.fs = HfFileSystem()
+        self.fs = HfFileSystem(expand_info=True)
         self.path = DatasetPathHandler()
 
     def ls(self, target):
