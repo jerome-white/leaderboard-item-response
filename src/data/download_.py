@@ -108,8 +108,10 @@ class DatasetAccessRequestor:
         response.raise_for_status()
 
     def to_url(self, path):
-        parts = self.path.repo_parts(path)
-        body = Path(DatasetPathHandler._netloc, *parts, self._endpoint)
+        body = (self
+                .path
+                .relative_to(path)
+                .joinpath(self._endpoint))
 
         kwargs = dict(self._url, path=str(body))
         for i in ParseResult._fields:

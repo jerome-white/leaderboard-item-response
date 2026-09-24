@@ -93,27 +93,29 @@ class Experiment:
         yield from self.subjects
 
 class DatasetPathHandler:
-    _netloc = 'datasets'
-
     def __init__(self):
         kwargs = {
             'scheme': 'hf',
-            'netloc': self._netloc,
+            'netloc': self.netloc,
         }
         for i in ParseResult._fields:
             kwargs.setdefault(i, None)
         self.url = ParseResult(**kwargs)
 
+    @property
+    def netloc(self):
+        return 'datasets'
+
     def strip_netloc(self, path):
         try:
-            return path.relative_to(self._netloc)
+            return path.relative_to(self.netloc)
         except ValueError:
             return path
 
-    def repo_parts(self, path):
-        if isinstance(path, str):
-            path = Path(path)
-        return self.strip_netloc(path).parts[:2]
+    def relative_to(self, path: Path) -> Path:
+        stripped = self.strip_netloc(path)
+        parts = stripped.parts[:2]
+        return Path(self.netloc, *parts)
 
     @ft.singledispatchmethod
     def to_url(self, path):
