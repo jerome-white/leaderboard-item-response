@@ -70,6 +70,16 @@ class Result:
         return self.date < other.date
 
 class DatasetFileSystem:
+    @staticmethod
+    def retry(err) -> int | None:
+        response = getattr(err, 'response', None)
+        if response is not None:
+            after = response.headers.get('Retry-After')
+            try:
+                return int(after)
+            except (TypeError, ValueError):
+                pass
+
     def __init__(self, backoff):
         self.backoff = backoff
         self.fs = HfFileSystem(expand_info=True)
@@ -77,19 +87,20 @@ class DatasetFileSystem:
 
     def ls(self, target):
         target = self.path.to_string(target)
-        for (i, j) in enumerate(self.backoff, 1):
+        for (attempt, delay) in enumerate(self.backoff, 1):
             try:
                 yield from self.fs.ls(target)
                 break
             except Exception as err:
+                delay = self.retry(err) or delay
                 Logger.error(
                     '%s: %s (attempt=%d, backoff=%ds)',
                     type(err).__name__,
                     err,
-                    i,
-                    j,
+                    attempt,
+                    delay,
                 )
-            time.sleep(j)
+            time.sleep(delay)
 
     def walk(self, target):
         for i in self.ls(target):
