@@ -16,6 +16,7 @@ class Submission:
         'samples',
         'leaderboard',
     )
+    _sep: ClassVar[str] = '_'
 
     def __post_init__(self):
         self.path = Path(self.path)
@@ -25,7 +26,7 @@ class Submission:
     def to_sample(self):
         (*_, info, name) = self.path.parts
         dataset = Dataset.from_flattened(info)
-        parts = name.split('_')
+        parts = name.split(self._sep)
 
         root = tuple(parts[:self.n])
         if root != self._root:
@@ -33,7 +34,7 @@ class Submission:
 
         (*rest, _timestamp) = parts[self.n:]
         (benchmark, *subject) = rest
-        subject = '_'.join(subject)
+        subject = self._sep.join(subject)
 
         return SubmissionInfo(
             author=dataset.namespace,
