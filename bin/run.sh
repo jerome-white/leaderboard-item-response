@@ -42,7 +42,14 @@ _questions=$_output/var/questions
 _results=$_output/opt
 _src=$ROOT/src
 
-hf auth login --token $HF_BEARER_TOKEN &> /dev/null || exit 1
+scratch=`mktemp --directory`
+trap 'rm --recursive --force $scratch' EXIT
+
+err=$scratch/hf.err
+hf auth login --token $HF_BEARER_TOKEN &> $err || {
+    cat $err
+    exit 1
+}
 
 case $_step in
     1) # Hugging Face download
@@ -56,7 +63,7 @@ case $_step in
         ;;
     2) # Stan preparation
         src=$_src/model
-        tmp=`mktemp`
+        tmp=`mktemp --tmpdir=$scratch`
         script=aggregate-data
 
         for i in $_src/experiments/*.py; do
@@ -81,8 +88,6 @@ EOF
                 pigz --best $agg
             done
         done
-
-        rm $tmp
         ;;
     3) # Stan sampling
         src=$_src/model
