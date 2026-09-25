@@ -30,7 +30,7 @@ class Submission:
 
         root = tuple(parts[:self.n])
         if root != self._root:
-            raise ValueError(name)
+            raise ValueError(f'Bad root: {name}')
 
         (*rest, _timestamp) = parts[self.n:]
         (benchmark, *subject) = rest
