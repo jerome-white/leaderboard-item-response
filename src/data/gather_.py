@@ -49,8 +49,8 @@ def records(fp):
         submission = Submission(**row)
         try:
             sample = submission.to_sample()
-        except ValueError:
-            Logger.error(submission.path)
+        except ValueError as err:
+            Logger.error(err)
             continue
 
         rec = {}
