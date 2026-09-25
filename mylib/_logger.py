@@ -10,4 +10,5 @@ logging.basicConfig(
     level=os.environ.get('PYTHONLOGLEVEL', 'INFO').upper(),
 )
 logging.captureWarnings(True)
+logging.getLogger('httpx').setLevel(logging.WARNING)
 Logger = logging.getLogger(__name__)
