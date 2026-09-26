@@ -76,14 +76,13 @@ class Math(DirectoryHandler):
 
 # Subjects included in docs
 class IndexedCategoryBenchmark(BenchmarkHandler):
-    def __init__(self, info, documents, metric, s_key):
+    def __init__(self, info, documents, metric):
         super().__init__(info, documents, metric)
-        self.subjects = dict(self.load(s_key))
+        self.subjects = dict(self.load())
 
-    def load(self, s_key):
+    def load(self):
         for d in self.documents:
-            value = d.content['doc'][s_key]
-            yield (d.question, value)
+            yield (d.question, d.label)
 
     def handle(self, subject, observations):
         for o in observations:
@@ -92,11 +91,11 @@ class IndexedCategoryBenchmark(BenchmarkHandler):
 
 class MultitaskUnderstanding(IndexedCategoryBenchmark):
     def __init__(self, info, documents):
-        super().__init__(info, documents, 'acc', 'category')
+        super().__init__(info, documents, 'acc')
 
 class GraduateLevelGoogleProofQA(IndexedCategoryBenchmark):
     def __init__(self, info, documents):
-        super().__init__(info, documents, 'acc_norm', 'High-level domain')
+        super().__init__(info, documents, 'acc_norm')
 
 # Do not have the concept of subject
 class NoSubjectBenchmark(BenchmarkHandler):
@@ -130,6 +129,8 @@ def func(incoming, outgoing, experiment, args):
         'ifeval': InstructionFollowingEval,
     }[experiment.benchmark]
 
+    connection = QuestionBank.connect(args.question_bank)
+
     while True:
         path = incoming.get()
         Logger.info(path)
@@ -139,7 +140,7 @@ def func(incoming, outgoing, experiment, args):
         rel = path.relative_to(args.data_root)
         info = SubmissionInfo.from_path(rel, '.csv.gz')
         documents = QuestionBank(
-            args.question_bank,
+            connection,
             experiment.benchmark,
             info.subject,
         )
