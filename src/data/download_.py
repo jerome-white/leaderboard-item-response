@@ -121,6 +121,14 @@ class DatasetAccessRequestor:
 
         return ParseResult(**kwargs)
 
+@ft.singledispatch
+def raise_for_hf_reader_error(err, message):
+    raise ConnectionError(message) from err
+
+@raise_for_hf_reader_error.register
+def _(err: GatedRepoError | HTTPError, message):
+    raise PermissionError(message) from err
+
 class HfFileReader:
     def __init__(self, backoff, retries):
         self.ask = DatasetAccessRequestor()
@@ -146,13 +154,13 @@ class HfFileReader:
                     try:
                         self.ask(target)
                     except HTTPError as herr:
-                        raise PermissionError(target) from herr
+                        raise_for_hf_reader_error(target, herr)
                     asked = True
-                time.sleep(delay)
             except Exception as err:
-                raise ConnectionError(target) from err
-
-        raise PermissionError(target) from last_err
+                last_err = err
+                Logger.error('%s: %s', type(err).__name__, err)
+            time.sleep(delay)
+        raise_for_hf_reader_error(last_err, target)
 
 class SubmissionReader:
     _document_keys = (

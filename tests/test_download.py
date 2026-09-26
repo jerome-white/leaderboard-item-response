@@ -54,5 +54,33 @@ class HfFileReaderTestCase(unittest.TestCase):
         self.assertEqual(result, [{'a': 1}])
         self.assertEqual(reader.ask.call_count, 1)
 
+    def test_retries_generic_connection_failures_then_raises_connection_error(self):
+        reader = self.make(retries=3)
+
+        with patch.object(download_, 'fsspec') as mock_fsspec, \
+             patch.object(download_, 'time') as mock_time:
+            mock_fsspec.open.side_effect = RuntimeError('peer closed connection')
+
+            with self.assertRaises(ConnectionError):
+                list(reader(Path('datasets/org/repo-details/x/file.json')))
+
+        self.assertEqual(mock_fsspec.open.call_count, 3)
+        self.assertEqual(mock_time.sleep.call_count, 3)
+        reader.ask.assert_not_called()
+
+    def test_succeeds_after_one_generic_connection_failure(self):
+        reader = self.make(retries=3)
+
+        with patch.object(download_, 'fsspec') as mock_fsspec, \
+             patch.object(download_, 'time') as mock_time:
+            mock_fsspec.open.side_effect = [
+                RuntimeError('peer closed connection'),
+                FakeFile([b'{"a": 1}\n']),
+            ]
+            result = list(reader(Path('datasets/org/repo-details/x/file.json')))
+
+        self.assertEqual(result, [{'a': 1}])
+        reader.ask.assert_not_called()
+
 if __name__ == '__main__':
     unittest.main()
