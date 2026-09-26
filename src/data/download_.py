@@ -5,15 +5,12 @@ import time
 import itertools as it
 import functools as ft
 import statistics as st
-import collections as cl
 from typing import SupportsFloat
 from pathlib import Path
 from argparse import ArgumentParser
 from dataclasses import dataclass, fields, asdict, replace
 from urllib.parse import ParseResult, urlunparse
-from queue import Empty
-from multiprocessing import Pool, Queue
-from collections.abc import Iterator
+from multiprocessing import Pool, JoinableQueue
 
 import fsspec
 import requests
@@ -25,10 +22,10 @@ from mylib import (
     Backoff,
     DatasetPathHandler,
     Document,
-    DocumentBank,
     Logger,
     QuestionBank,
     SubmissionInfo,
+    SUBJECT_KEYS,
 )
 
 #
@@ -55,40 +52,6 @@ class Result:
 
     def __post_init__(self):
         self.score = to_float(self.score)
-
-#
-#
-#
-class DocumentAggregator:
-    def __init__(self, destination):
-        self.destination = destination
-        self.history = cl.defaultdict(set)
-
-    def __call__(self, dbank: DocumentBank) -> None:
-        qbank = QuestionBank(self.destination, dbank.benchmark, dbank.subject)
-        history = self.setup_and_load(qbank)
-        qbank.printf(self.documents(dbank, history))
-
-    def documents(
-            self,
-            dbank: DocumentBank,
-            history: set,
-    ) -> Iterator[Document]:
-        for doc in dbank:
-            if doc.question not in history:
-                yield doc
-                history.add(doc.question)
-
-    def setup_and_load(self, qbank: QuestionBank) -> set:
-        history = self.history[qbank.path]
-
-        if not qbank.path.exists():
-            qbank.path.parent.mkdir(parents=True, exist_ok=True)
-        elif not history:
-            for doc in qbank:
-                history.add(doc.question)
-
-        return history
 
 #
 #
@@ -156,17 +119,14 @@ class HfFileReader:
         raise PermissionError(target) from last_err
 
 class SubmissionReader:
-    _document_keys = (
-        'doc',
-        'doc_id',
-    )
     _metrics = (
         'acc',
         'match',
     )
 
-    def __init__(self, reader):
+    def __init__(self, reader, benchmark=None):
         self.reader = reader
+        self.label_key = SUBJECT_KEYS.get(benchmark)
         self.documents = []
 
     def __call__(self, submission):
@@ -185,67 +145,45 @@ class SubmissionReader:
                     yield Result(document, metric, score)
 
     def store(self, doc, info):
-        content = { x: info[x] for x in self._document_keys }
-        document = Document(doc, content)
-        self.documents.append(document)
+        label = info['doc'][self.label_key] if self.label_key else None
+        self.documents.append(Document(doc, label))
 
 #
 #
 #
-def drain(incoming, aggregate):
-    jobs = 0
-    while True:
-        try:
-            dbank = incoming.get_nowait()
-        except Empty:
-            return jobs
-        jobs += 1
-        if dbank is not None:
-            aggregate(dbank)
+def process(submission, hf_reader, keys, connection, args):
+    Logger.info(submission['path'])
 
-def collect(reader, outgoing, incoming, aggregate):
-    jobs = 0
-    for row in reader:
-        outgoing.put(row)
-        jobs += 1
-        jobs -= drain(incoming, aggregate)
+    reader = SubmissionReader(hf_reader, submission.get('benchmark'))
+    try:
+        df = pd.DataFrame.from_records(reader(submission))
+    except (PermissionError, ConnectionError) as err:
+        Logger.critical('%s: %s', type(err), err)
+        return
 
-    while jobs:
-        dbank = incoming.get()
-        jobs -= 1
-        if dbank is not None:
-            aggregate(dbank)
+    info = SubmissionInfo(*map(submission.get, keys))
+    if not info.subject:
+        info = replace(info, subject='_')
 
-#
-#
-#
-def func(incoming, outgoing, args):
+    if not df.empty:
+        out = args.output.joinpath(info.to_path('.csv.gz'))
+        out.parent.mkdir(parents=True, exist_ok=True)
+        df.to_csv(out, index=False, compression='gzip')
+
+    qbank = QuestionBank(connection, info.benchmark, info.subject)
+    qbank.write(reader.documents)
+
+def func(tasks, args):
     hf_reader = HfFileReader(Backoff(args.backoff, 0.1), args.retries)
     keys = [ x.name for x in fields(SubmissionInfo) ]
+    connection = QuestionBank.connect(args.question_bank)
 
     while True:
-        submission = incoming.get()
-        Logger.info(submission['path'])
-
-        reader = SubmissionReader(hf_reader)
+        submission = tasks.get()
         try:
-            df = pd.DataFrame.from_records(reader(submission))
-        except (PermissionError, ConnectionError) as err:
-            Logger.critical('%s: %s', type(err), err)
-            outgoing.put(None)
-            continue
-
-        info = SubmissionInfo(*map(submission.get, keys))
-        if not info.subject:
-            info = replace(info, subject='_')
-
-        if not df.empty:
-            out = args.output.joinpath(info.to_path('.csv.gz'))
-            out.parent.mkdir(parents=True, exist_ok=True)
-            df.to_csv(out, index=False, compression='gzip')
-
-        dbank = DocumentBank(info.benchmark, info.subject, reader.documents)
-        outgoing.put(dbank)
+            process(submission, hf_reader, keys, connection, args)
+        finally:
+            tasks.task_done()
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
@@ -256,15 +194,14 @@ if __name__ == '__main__':
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
-    incoming = Queue()
-    outgoing = Queue()
+    tasks = JoinableQueue()
     initargs = (
-        outgoing,
-        incoming,
+        tasks,
         args,
     )
 
     with Pool(args.workers, func, initargs):
-        aggregate = DocumentAggregator(args.question_bank)
         reader = csv.DictReader(sys.stdin)
-        collect(reader, outgoing, incoming, aggregate)
+        for row in reader:
+            tasks.put(row)
+        tasks.join()
