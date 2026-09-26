@@ -1,5 +1,4 @@
 import unittest
-import tempfile
 from pathlib import Path
 
 from mylib import Dataset, DatasetPathHandler, Document, QuestionBank, SubmissionInfo
@@ -35,24 +34,45 @@ class DatasetPathHandlerTestCase(unittest.TestCase):
             handler.relative_to('datasets/open-llm-leaderboard/contents')
 
 class QuestionBankTestCase(unittest.TestCase):
-    def test_path_appends_suffix_to_dotted_subject(self):
-        qbank = QuestionBank(Path('questions'), 'mmlu', 'u.s._history')
-        self.assertEqual(qbank.path, Path('questions', 'mmlu', 'u.s._history.jsonl'))
+    def make(self):
+        connection = QuestionBank.connect(Path(':memory:'))
+        self.addCleanup(connection.close)
+        return connection
 
-    def test_path_appends_suffix_to_plain_subject(self):
-        qbank = QuestionBank(Path('questions'), 'bbh', '_')
-        self.assertEqual(qbank.path, Path('questions', 'bbh', '_.jsonl'))
+    def test_connect_creates_the_questions_table(self):
+        connection = self.make()
+        tables = connection.execute(
+            "SELECT name FROM sqlite_master WHERE type = 'table'"
+        ).fetchall()
+        self.assertIn(('questions',), tables)
 
-    def test_printf_then_iter_round_trips_documents(self):
-        documents = [
-            Document('q1', {'doc': 'a'}),
-            Document('q2', {'doc': 'b'}),
-        ]
-        with tempfile.TemporaryDirectory() as tmp:
-            qbank = QuestionBank(Path(tmp), 'mmlu', 'u.s._history')
-            qbank.path.parent.mkdir(parents=True, exist_ok=True)
-            qbank.printf(documents)
-            self.assertEqual(list(qbank), documents)
+    def test_write_then_iter_round_trips_documents(self):
+        connection = self.make()
+        qbank = QuestionBank(connection, 'mmlu', 'u.s._history')
+        documents = [Document('q1', 'history'), Document('q2', 'history')]
+
+        qbank.write(documents)
+
+        self.assertEqual(list(qbank), documents)
+
+    def test_write_ignores_a_doc_hash_already_present(self):
+        connection = self.make()
+        qbank = QuestionBank(connection, 'mmlu', 'u.s._history')
+
+        qbank.write([Document('q1', 'history')])
+        qbank.write([Document('q1', 'history')])
+
+        self.assertEqual(list(qbank), [Document('q1', 'history')])
+
+    def test_iter_is_scoped_to_its_own_benchmark_and_subject(self):
+        connection = self.make()
+        QuestionBank(connection, 'mmlu', 'u.s._history').write([Document('q1', 'x')])
+        QuestionBank(connection, 'mmlu', 'anatomy').write([Document('q2', 'y')])
+        QuestionBank(connection, 'gpqa', 'u.s._history').write([Document('q3', 'z')])
+
+        qbank = QuestionBank(connection, 'mmlu', 'u.s._history')
+
+        self.assertEqual(list(qbank), [Document('q1', 'x')])
 
 class DatasetTestCase(unittest.TestCase):
     def test_from_fullname_splits_namespace_and_name(self):

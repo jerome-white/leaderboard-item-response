@@ -3,9 +3,9 @@ from ._utils import (
     Dataset,
     DatasetPathHandler,
     Document,
-    DocumentBank,
     Experiment,
     QuestionBank,
     SubmissionInfo,
+    SUBJECT_KEYS,
 )
 from ._logger import Logger

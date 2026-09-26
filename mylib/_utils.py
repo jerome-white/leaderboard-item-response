@@ -1,43 +1,70 @@
-import json
 import random
+import sqlite3
 import functools as ft
 from typing import ClassVar
 from pathlib import Path
-from dataclasses import dataclass, field, astuple, asdict
+from dataclasses import dataclass, field, astuple
 from urllib.parse import ParseResult, urlunparse
 from collections.abc import Iterable, Iterator
 
 @dataclass
 class Document:
     question: str
-    content: dict
+    label: str | None = None
 
-@dataclass
-class DocumentBank:
-    benchmark: str
-    subject: str
-    documents: list = field(default_factory=list)
-
-    def __iter__(self):
-        yield from self.documents
+# Benchmarks whose downstream aggregation needs a per-question category,
+# and the key under which that category lives in the raw HF doc.
+SUBJECT_KEYS = {
+    'mmlu': 'category',
+    'gpqa': 'High-level domain',
+}
 
 class QuestionBank:
-    _suffix = '.jsonl'
+    _table = 'questions'
+    _schema = f'''
+        CREATE TABLE IF NOT EXISTS {_table} (
+            benchmark TEXT NOT NULL,
+            subject   TEXT NOT NULL,
+            doc_hash  TEXT NOT NULL,
+            label     TEXT,
+            PRIMARY KEY (benchmark, subject, doc_hash)
+        )
+    '''
 
-    def __init__(self, root, benchmark, subject):
-        fname = f'{subject}{self._suffix}'
-        self.path = root.joinpath(benchmark, fname)
+    @classmethod
+    def connect(cls, path) -> sqlite3.Connection:
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        connection = sqlite3.connect(path)
+        connection.execute('PRAGMA journal_mode=WAL')
+        connection.execute('PRAGMA busy_timeout=5000')
+        connection.execute(cls._schema)
+        return connection
+
+    def __init__(self, connection: sqlite3.Connection, benchmark: str, subject: str):
+        self.connection = connection
+        self.benchmark = benchmark
+        self.subject = subject
 
     def __iter__(self) -> Iterator[Document]:
-        with self.path.open() as fp:
-            for line in fp:
-                doc = json.loads(line)
-                yield Document(**doc)
+        cursor = self.connection.execute(
+            f'SELECT doc_hash, label FROM {self._table} '
+            'WHERE benchmark = ? AND subject = ?',
+            (self.benchmark, self.subject),
+        )
+        for (doc_hash, label) in cursor:
+            yield Document(doc_hash, label)
 
-    def printf(self, documents: Iterable[Document]) -> None:
-        with self.path.open('a') as fp:
-            for d in documents:
-                print(json.dumps(asdict(d)), file=fp)
+    def write(self, documents: Iterable[Document]) -> None:
+        rows = (
+            (self.benchmark, self.subject, d.question, d.label)
+            for d in documents
+        )
+        self.connection.executemany(
+            f'INSERT OR IGNORE INTO {self._table} '
+            '(benchmark, subject, doc_hash, label) VALUES (?, ?, ?, ?)',
+            rows,
+        )
+        self.connection.commit()
 
 @dataclass(frozen=True)
 class Dataset:
