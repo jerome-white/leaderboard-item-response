@@ -148,11 +148,15 @@ class HfFileReader:
                     except HTTPError as herr:
                         raise PermissionError(target) from herr
                     asked = True
-                time.sleep(delay)
             except Exception as err:
-                raise ConnectionError(target) from err
+                last_err = err
+                Logger.error('%s: %s', type(err).__name__, err)
 
-        raise PermissionError(target) from last_err
+            time.sleep(delay)
+
+        if isinstance(last_err, GatedRepoError):
+            raise PermissionError(target) from last_err
+        raise ConnectionError(target) from last_err
 
 class SubmissionReader:
     _document_keys = (
