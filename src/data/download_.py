@@ -11,6 +11,7 @@ from pathlib import Path
 from argparse import ArgumentParser
 from dataclasses import dataclass, fields, asdict, replace
 from urllib.parse import ParseResult, urlunparse
+from queue import Empty
 from multiprocessing import Pool, Queue
 from collections.abc import Iterator
 
@@ -191,6 +192,33 @@ class SubmissionReader:
 #
 #
 #
+def drain(incoming, aggregate):
+    jobs = 0
+    while True:
+        try:
+            dbank = incoming.get_nowait()
+        except Empty:
+            return jobs
+        jobs += 1
+        if dbank is not None:
+            aggregate(dbank)
+
+def collect(reader, outgoing, incoming, aggregate):
+    jobs = 0
+    for row in reader:
+        outgoing.put(row)
+        jobs += 1
+        jobs -= drain(incoming, aggregate)
+
+    while jobs:
+        dbank = incoming.get()
+        jobs -= 1
+        if dbank is not None:
+            aggregate(dbank)
+
+#
+#
+#
 def func(incoming, outgoing, args):
     hf_reader = HfFileReader(Backoff(args.backoff, 0.1), args.retries)
     keys = [ x.name for x in fields(SubmissionInfo) ]
@@ -237,14 +265,6 @@ if __name__ == '__main__':
     )
 
     with Pool(args.workers, func, initargs):
-        jobs = 0
-        reader = csv.DictReader(sys.stdin)
-        for row in reader:
-            outgoing.put(row)
-            jobs += 1
-
         aggregate = DocumentAggregator(args.question_bank)
-        for _ in range(jobs):
-            dbank = incoming.get()
-            if dbank is not None:
-                aggregate(dbank)
+        reader = csv.DictReader(sys.stdin)
+        collect(reader, outgoing, incoming, aggregate)
