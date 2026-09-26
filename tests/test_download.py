@@ -1,3 +1,4 @@
+import queue
 import unittest
 import importlib.util
 from pathlib import Path
@@ -9,6 +10,51 @@ _path = Path(__file__).resolve().parent.parent / 'src' / 'data' / 'download_.py'
 _spec = importlib.util.spec_from_file_location('download_', _path)
 download_ = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(download_)
+
+class FakeAggregate:
+    def __init__(self):
+        self.calls = []
+
+    def __call__(self, dbank):
+        self.calls.append(dbank)
+
+class DrainTestCase(unittest.TestCase):
+    def test_drains_everything_currently_available(self):
+        incoming = queue.Queue()
+        incoming.put('a')
+        incoming.put(None)
+        incoming.put('b')
+        aggregate = FakeAggregate()
+
+        n = download_.drain(incoming, aggregate)
+
+        self.assertEqual(n, 3)
+        self.assertEqual(aggregate.calls, ['a', 'b'])
+
+    def test_returns_zero_when_nothing_available(self):
+        aggregate = FakeAggregate()
+
+        self.assertEqual(download_.drain(queue.Queue(), aggregate), 0)
+        self.assertEqual(aggregate.calls, [])
+
+class CollectTestCase(unittest.TestCase):
+    def test_drains_incrementally_and_catches_stragglers_at_the_end(self):
+        outgoing = queue.Queue()
+        incoming = queue.Queue()
+        aggregate = FakeAggregate()
+
+        def reader():
+            yield 'row1'
+            incoming.put('result1')  # ready before the next feed's drain
+            yield 'row2'
+            yield 'row3'
+            incoming.put('result2')  # only ready after feeding is done
+            incoming.put('result3')
+
+        download_.collect(reader(), outgoing, incoming, aggregate)
+
+        self.assertEqual(outgoing.qsize(), 3)
+        self.assertCountEqual(aggregate.calls, ['result1', 'result2', 'result3'])
 
 class FakeFile:
     def __init__(self, lines):
