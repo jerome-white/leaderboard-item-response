@@ -118,7 +118,7 @@ class HfFileReader:
                     try:
                         self.ask(target)
                     except HTTPError as herr:
-                        raise_for_hf_reader_error(target, herr)
+                        raise_for_hf_reader_error(herr, target)
                     asked = True
             except Exception as err:
                 last_err = err
