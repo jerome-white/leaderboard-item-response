@@ -24,8 +24,8 @@ from mylib import (
     Document,
     Logger,
     QuestionBank,
+    Session,
     SubmissionInfo,
-    SUBJECT_KEYS,
 )
 
 #
@@ -110,7 +110,8 @@ class HfFileReader:
                     try:
                         self.ask(target)
                     except HTTPError as herr:
-                        raise PermissionError(target) from herr
+                        last_err = herr
+                        break
                     asked = True
                 time.sleep(delay)
             except Exception as err:
@@ -123,10 +124,14 @@ class SubmissionReader:
         'acc',
         'match',
     )
+    _subjects = {
+        'mmlu': 'category',
+        'gpqa': 'High-level domain',
+    }
 
     def __init__(self, reader, benchmark=None):
         self.reader = reader
-        self.label_key = SUBJECT_KEYS.get(benchmark)
+        self.subject = self._subjects.get(benchmark)
         self.documents = []
 
     def __call__(self, submission):
@@ -145,45 +150,35 @@ class SubmissionReader:
                     yield Result(document, metric, score)
 
     def store(self, doc, info):
-        label = info['doc'][self.label_key] if self.label_key else None
-        self.documents.append(Document(doc, label))
+        label = info['doc'][self.subject] if self.subject else None
+        document = Document(doc, label)
+        self.documents.append(document)
 
 #
 #
 #
-def process(submission, hf_reader, keys, connection, args):
-    Logger.info(submission['path'])
-
-    reader = SubmissionReader(hf_reader, submission.get('benchmark'))
-    try:
-        df = pd.DataFrame.from_records(reader(submission))
-    except (PermissionError, ConnectionError) as err:
-        Logger.critical('%s: %s', type(err), err)
-        return
-
-    info = SubmissionInfo(*map(submission.get, keys))
-    if not info.subject:
-        info = replace(info, subject='_')
-
-    if not df.empty:
-        out = args.output.joinpath(info.to_path('.csv.gz'))
-        out.parent.mkdir(parents=True, exist_ok=True)
-        df.to_csv(out, index=False, compression='gzip')
-
-    qbank = QuestionBank(connection, info.benchmark, info.subject)
-    qbank.write(reader.documents)
-
-def func(tasks, args):
+def func(queue: JoinableQueue, args):
     hf_reader = HfFileReader(Backoff(args.backoff, 0.1), args.retries)
     keys = [ x.name for x in fields(SubmissionInfo) ]
-    connection = QuestionBank.connect(args.question_bank)
 
-    while True:
-        submission = tasks.get()
-        try:
-            process(submission, hf_reader, keys, connection, args)
-        finally:
-            tasks.task_done()
+    with QuestionBank(args.question_db) as db:
+        while True:
+            submission = tasks.get()
+            Logger.info(submission['path'])
+
+            info = SubmissionInfo(*map(submission.get, keys))
+            reader = SubmissionReader(hf_reader, submission.get('benchmark'))
+            try:
+                df = pd.DataFrame.from_records(reader(submission))
+                if not df.empty:
+                    out = args.output.joinpath(info.to_path('.csv.gz'))
+                    out.parent.mkdir(parents=True, exist_ok=True)
+                    df.to_csv(out, index=False, compression='gzip')
+                db.put(info, reader.documents)
+            except (PermissionError, ConnectionError, SQLAlchemyError) as err:
+                Logger.error('%s: %s', type(err), err)
+            finally:
+                queue.task_done()
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
@@ -194,7 +189,7 @@ if __name__ == '__main__':
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
-    tasks = JoinableQueue()
+    queue = JoinableQueue()
     initargs = (
         tasks,
         args,
@@ -203,5 +198,5 @@ if __name__ == '__main__':
     with Pool(args.workers, func, initargs):
         reader = csv.DictReader(sys.stdin)
         for row in reader:
-            tasks.put(row)
-        tasks.join()
+            queue.put(row)
+        queue.join()
