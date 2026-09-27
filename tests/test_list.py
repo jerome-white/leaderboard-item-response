@@ -22,29 +22,33 @@ class DatasetFileSystemTestCase(unittest.TestCase):
             list_.DatasetFileSystem(backoff=[1])
             mock_cls.assert_called_once_with(expand_info=True)
 
-    def test_retry_after_reads_header_when_present(self):
-        err = _FakeHttpError({'Retry-After': '151'})
-        self.assertEqual(list_.DatasetFileSystem.retry_after(err), 151)
+    def test_retry_after_reads_seconds_until_reset_from_ratelimit_header(self):
+        err = _FakeHttpError({'RateLimit': '"api";r=499;t=81'})
+        self.assertEqual(list_.DatasetFileSystem.retry_after(err), 81)
 
     def test_retry_after_is_none_without_a_response(self):
         self.assertIsNone(list_.DatasetFileSystem.retry_after(Exception('boom')))
 
-    def test_retry_after_is_none_when_header_is_not_numeric(self):
-        err = _FakeHttpError({'Retry-After': 'Wed, 21 Oct 2015 07:28:00 GMT'})
+    def test_retry_after_is_none_when_header_is_absent(self):
+        err = _FakeHttpError({})
         self.assertIsNone(list_.DatasetFileSystem.retry_after(err))
 
-    def test_ls_sleeps_for_retry_after_header_instead_of_own_backoff(self):
+    def test_retry_after_is_none_when_t_field_is_not_numeric(self):
+        err = _FakeHttpError({'RateLimit': '"api";r=499;t=soon'})
+        self.assertIsNone(list_.DatasetFileSystem.retry_after(err))
+
+    def test_ls_sleeps_for_ratelimit_reset_instead_of_own_backoff(self):
         fs = list_.DatasetFileSystem(Backoff(5))
         fs.fs = MagicMock()
-        fs.fs.ls.side_effect = [_FakeHttpError({'Retry-After': '151'}), ['ok']]
+        fs.fs.ls.side_effect = [_FakeHttpError({'RateLimit': '"api";r=0;t=81'}), ['ok']]
 
         with patch.object(list_, 'time') as mock_time:
             result = list(fs.ls('open-llm-leaderboard/foo-details'))
 
         self.assertEqual(result, ['ok'])
-        mock_time.sleep.assert_called_once_with(151)
+        mock_time.sleep.assert_called_once_with(81)
 
-    def test_ls_falls_back_to_own_backoff_without_retry_after(self):
+    def test_ls_falls_back_to_own_backoff_without_ratelimit_header(self):
         fs = list_.DatasetFileSystem(Backoff(5))
         fs.fs = MagicMock()
         fs.fs.ls.side_effect = [Exception('transient'), ['ok']]
