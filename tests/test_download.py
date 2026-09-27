@@ -71,8 +71,8 @@ class FuncTestCase(unittest.TestCase):
 
     def test_writes_results_and_documents_on_success(self):
         rows = [
-            {'doc_hash': 'q1', 'doc': {'category': 'algebra'}, 'acc': 1.0},
-            {'doc_hash': 'q2', 'doc': {'category': 'algebra'}, 'acc': 0.0},
+            {'doc_id': 'q1', 'doc': {'category': 'algebra'}, 'acc': 1.0},
+            {'doc_id': 'q2', 'doc': {'category': 'algebra'}, 'acc': 0.0},
         ]
         lines = [json.dumps(r).encode() for r in rows]
 

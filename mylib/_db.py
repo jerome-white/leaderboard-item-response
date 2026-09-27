@@ -14,7 +14,7 @@ class BenchmarkQuestion(Base):
 
     benchmark = Column(Text, primary_key=True, nullable=False)
     subject   = Column(Text, primary_key=True, nullable=False)
-    doc_hash  = Column(Text, primary_key=True, nullable=False)
+    doc_id    = Column(Text, primary_key=True, nullable=False)
     label     = Column(Text)
 
 class QuestionBank:
@@ -60,7 +60,7 @@ class QuestionBank:
     def get(self, info: SubmissionInfo) -> Iterator[Document]:
         stmt = (
             select(
-                BenchmarkQuestion.doc_hash,
+                BenchmarkQuestion.doc_id,
                 BenchmarkQuestion.label,
             )
             .where(
@@ -70,7 +70,7 @@ class QuestionBank:
         )
 
         for row in self.session.execute(stmt):
-            yield Document(row.doc_hash, row.label)
+            yield Document(row.doc_id, row.label)
 
     def put(self, info: SubmissionInfo, documents: Iterable[Document]) -> None:
         self.documents.clear()
@@ -78,7 +78,7 @@ class QuestionBank:
             self.documents.append({
                 'benchmark': info.benchmark,
                 'subject': info.subject,
-                'doc_hash': doc.question,
+                'doc_id': doc.question,
                 'label': doc.label,
             })
 

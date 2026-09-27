@@ -1,4 +1,5 @@
 import unittest
+import sqlite3
 import tempfile
 from pathlib import Path
 
@@ -38,6 +39,26 @@ class QuestionBankTestCase(unittest.TestCase):
     def make(self, tmp):
         return QuestionBank(Path(tmp, 'questions.sqlite'))
 
+    def test_schema_keys_rows_by_doc_id_not_doc_hash(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, 'questions.sqlite')
+            with self.make(tmp):
+                pass
+
+            connection = sqlite3.connect(path)
+            try:
+                columns = {
+                    row[1]
+                    for row in connection.execute(
+                        "PRAGMA table_info(benchmark_questions)"
+                    )
+                }
+            finally:
+                connection.close()
+
+        self.assertIn('doc_id', columns)
+        self.assertNotIn('doc_hash', columns)
+
     def test_put_then_get_round_trips_documents(self):
         info = SubmissionInfo('mmlu', 'u.s._history', 'org', 'model')
         documents = [Document('q1', 'history'), Document('q2', 'history')]
@@ -48,7 +69,7 @@ class QuestionBankTestCase(unittest.TestCase):
 
         self.assertEqual(result, documents)
 
-    def test_put_ignores_a_doc_hash_already_present(self):
+    def test_put_ignores_a_doc_id_already_present(self):
         info = SubmissionInfo('mmlu', 'u.s._history', 'org', 'model')
 
         with tempfile.TemporaryDirectory() as tmp, self.make(tmp) as db:
