@@ -104,7 +104,7 @@ class DatasetFileSystem:
                 Logger.error(
                     '%s: %s (attempt=%d, backoff=%ds)',
                     type(err).__name__,
-                    err,
+                    ' '.join(str(err).split()),
                     attempt,
                     delay,
                 )
