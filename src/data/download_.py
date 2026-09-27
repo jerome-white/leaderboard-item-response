@@ -167,6 +167,8 @@ def func(queue: JoinableQueue, args):
             Logger.info(submission['path'])
 
             info = SubmissionInfo(*map(submission.get, keys))
+            if not info.subject:
+                info = replace(info, subject='_')
             reader = SubmissionReader(hf_reader, submission.get('benchmark'))
             try:
                 df = pd.DataFrame.from_records(reader(submission))

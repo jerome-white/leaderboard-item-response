@@ -47,13 +47,9 @@ class Dataset:
 @dataclass(frozen=True)
 class SubmissionInfo:
     benchmark: str
+    subject: str
     author: str
     model: str
-    subject: str | None
-
-    def __post_init__(self):
-        if self.subject is None:
-            self.subject = '_'
 
     def to_path(self, suffix=None):
         (*parents, model) = astuple(self)
