@@ -73,12 +73,20 @@ class DatasetFileSystem:
     @staticmethod
     def retry(err) -> int | None:
         response = getattr(err, 'response', None)
-        if response is not None:
-            after = response.headers.get('Retry-After')
-            try:
-                return int(after)
-            except (TypeError, ValueError):
-                pass
+        if response is None:
+            return
+
+        header = response.headers.get('RateLimit')
+        if header is None:
+            return
+
+        for field in header.split(';'):
+            (key, _, value) = field.strip().partition('=')
+            if key == 't':
+                try:
+                    return int(value)
+                except ValueError:
+                    break
 
     def __init__(self, backoff):
         self.backoff = backoff
