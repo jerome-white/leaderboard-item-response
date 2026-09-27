@@ -22,20 +22,20 @@ class DatasetFileSystemTestCase(unittest.TestCase):
             list_.DatasetFileSystem(backoff=[1])
             mock_cls.assert_called_once_with(expand_info=True)
 
-    def test_retry_after_reads_seconds_until_reset_from_ratelimit_header(self):
+    def test_retry_reads_seconds_until_reset_from_ratelimit_header(self):
         err = _FakeHttpError({'RateLimit': '"api";r=499;t=81'})
-        self.assertEqual(list_.DatasetFileSystem.retry_after(err), 81)
+        self.assertEqual(list_.DatasetFileSystem.retry(err), 81)
 
-    def test_retry_after_is_none_without_a_response(self):
-        self.assertIsNone(list_.DatasetFileSystem.retry_after(Exception('boom')))
+    def test_retry_is_none_without_a_response(self):
+        self.assertIsNone(list_.DatasetFileSystem.retry(Exception('boom')))
 
-    def test_retry_after_is_none_when_header_is_absent(self):
+    def test_retry_is_none_when_header_is_absent(self):
         err = _FakeHttpError({})
-        self.assertIsNone(list_.DatasetFileSystem.retry_after(err))
+        self.assertIsNone(list_.DatasetFileSystem.retry(err))
 
-    def test_retry_after_is_none_when_t_field_is_not_numeric(self):
+    def test_retry_is_none_when_t_field_is_not_numeric(self):
         err = _FakeHttpError({'RateLimit': '"api";r=499;t=soon'})
-        self.assertIsNone(list_.DatasetFileSystem.retry_after(err))
+        self.assertIsNone(list_.DatasetFileSystem.retry(err))
 
     def test_ls_sleeps_for_ratelimit_reset_instead_of_own_backoff(self):
         fs = list_.DatasetFileSystem(Backoff(5))
