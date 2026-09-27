@@ -1,14 +1,109 @@
+import json
+import queue
 import unittest
+import tempfile
 import importlib.util
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 
-from mylib import Backoff
+from mylib import Backoff, Document, QuestionBank, SubmissionInfo
 
 _path = Path(__file__).resolve().parent.parent / 'src' / 'data' / 'download_.py'
 _spec = importlib.util.spec_from_file_location('download_', _path)
 download_ = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(download_)
+
+class SubmissionReaderTestCase(unittest.TestCase):
+    def test_store_extracts_the_label_for_a_known_benchmark(self):
+        reader = download_.SubmissionReader(lambda path: iter([]), benchmark='mmlu')
+
+        reader.store('q1', {'doc': {'category': 'algebra'}})
+
+        self.assertEqual(reader.documents, [Document('q1', 'algebra')])
+
+    def test_store_leaves_the_label_unset_for_an_unmapped_benchmark(self):
+        reader = download_.SubmissionReader(lambda path: iter([]), benchmark='bbh')
+
+        reader.store('q1', {'doc': {'category': 'algebra'}})
+
+        self.assertEqual(reader.documents, [Document('q1', None)])
+
+class _BoundedQueue(queue.Queue):
+    """A queue.Queue that raises Stop once drained, so func()'s
+    infinite while-loop terminates instead of blocking forever."""
+    class Stop(Exception):
+        pass
+
+    def get(self, *args, **kwargs):
+        try:
+            return super().get(block=False)
+        except queue.Empty:
+            raise self.Stop()
+
+class FuncTestCase(unittest.TestCase):
+    _submission = {
+        'path': 'datasets/org/repo-details/x/samples_mmlu_algebra.json',
+        'benchmark': 'mmlu',
+        'subject': 'algebra',
+        'author': 'org',
+        'model': 'x',
+    }
+    _info = SubmissionInfo('mmlu', 'algebra', 'org', 'x')
+
+    def make_args(self, tmp):
+        return SimpleNamespace(
+            output=Path(tmp),
+            question_bank=Path(tmp, 'questions.sqlite'),
+            backoff=0.01,
+            retries=1,
+        )
+
+    def run_func(self, args):
+        tasks = _BoundedQueue()
+        tasks.put(self._submission)
+        with self.assertRaises(_BoundedQueue.Stop):
+            download_.func(tasks, args)
+
+    def documents(self, args):
+        with QuestionBank(args.question_bank) as db:
+            return list(db.get(self._info))
+
+    def test_writes_results_and_documents_on_success(self):
+        rows = [
+            {'doc_hash': 'q1', 'doc': {'category': 'algebra'}, 'acc': 1.0},
+            {'doc_hash': 'q2', 'doc': {'category': 'algebra'}, 'acc': 0.0},
+        ]
+        lines = [json.dumps(r).encode() for r in rows]
+
+        with tempfile.TemporaryDirectory() as tmp:
+            args = self.make_args(tmp)
+
+            with patch.object(download_, 'fsspec') as mock_fsspec:
+                mock_fsspec.open.return_value = FakeFile(lines)
+                self.run_func(args)
+
+            out = Path(tmp, 'mmlu', 'algebra', 'org', 'x.csv.gz')
+            self.assertTrue(out.exists())
+            documents = self.documents(args)
+
+        self.assertCountEqual(
+            documents,
+            [Document('q1', 'algebra'), Document('q2', 'algebra')],
+        )
+
+    def test_skips_output_and_documents_when_the_reader_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            args = self.make_args(tmp)
+
+            with patch.object(download_, 'fsspec') as mock_fsspec:
+                mock_fsspec.open.side_effect = Exception('boom')
+                self.run_func(args)
+
+            self.assertEqual(list(Path(tmp).rglob('*.csv.gz')), [])
+            documents = self.documents(args)
+
+        self.assertEqual(documents, [])
 
 class FakeFile:
     def __init__(self, lines):

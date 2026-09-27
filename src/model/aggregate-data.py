@@ -6,10 +6,12 @@ from pathlib import Path
 from argparse import ArgumentParser
 from dataclasses import dataclass, fields, asdict
 from multiprocessing import Pool, Queue
+from collections.abc import Iterator
 
 import pandas as pd
 
 from mylib import (
+    Document,
     Experiment,
     Logger,
     QuestionBank,
@@ -35,7 +37,7 @@ class BenchmarkHandler:
     def __init__(
             self,
             info: SubmissionInfo,
-            documents: QuestionBank,
+            documents: Iterator[Document],
             metric: str,
     ):
         self.info = info
@@ -76,14 +78,13 @@ class Math(DirectoryHandler):
 
 # Subjects included in docs
 class IndexedCategoryBenchmark(BenchmarkHandler):
-    def __init__(self, info, documents, metric, s_key):
+    def __init__(self, info, documents, metric):
         super().__init__(info, documents, metric)
-        self.subjects = dict(self.load(s_key))
+        self.subjects = dict(self.load())
 
-    def load(self, s_key):
+    def load(self):
         for d in self.documents:
-            value = d.content['doc'][s_key]
-            yield (d.question, value)
+            yield (d.question, d.label)
 
     def handle(self, subject, observations):
         for o in observations:
@@ -92,11 +93,11 @@ class IndexedCategoryBenchmark(BenchmarkHandler):
 
 class MultitaskUnderstanding(IndexedCategoryBenchmark):
     def __init__(self, info, documents):
-        super().__init__(info, documents, 'acc', 'category')
+        super().__init__(info, documents, 'acc')
 
 class GraduateLevelGoogleProofQA(IndexedCategoryBenchmark):
     def __init__(self, info, documents):
-        super().__init__(info, documents, 'acc_norm', 'High-level domain')
+        super().__init__(info, documents, 'acc_norm')
 
 # Do not have the concept of subject
 class NoSubjectBenchmark(BenchmarkHandler):
@@ -130,29 +131,26 @@ def func(incoming, outgoing, experiment, args):
         'ifeval': InstructionFollowingEval,
     }[experiment.benchmark]
 
-    while True:
-        path = incoming.get()
-        Logger.info(path)
+    with QuestionBank(args.question_bank) as db:
+        while True:
+            path = incoming.get()
+            Logger.info(path)
 
-        df = pd.read_csv(path, compression='gzip', memory_map=True)
+            df = pd.read_csv(path, compression='gzip', memory_map=True)
 
-        rel = path.relative_to(args.data_root)
-        info = SubmissionInfo.from_path(rel, '.csv.gz')
-        documents = QuestionBank(
-            args.question_bank,
-            experiment.benchmark,
-            info.subject,
-        )
-        handler = Handler(info, documents)
+            rel = path.relative_to(args.data_root)
+            info = SubmissionInfo.from_path(rel, '.csv.gz')
+            documents = db.get(info)
+            handler = Handler(info, documents)
 
-        for e in experiment:
-            try:
-                records = list(handler(df, e))
-            except ValueError as err:
-                Logger.error('%s %s: %s', path, e, err)
-                continue
-            outgoing.put(records)
-        outgoing.put(None)
+            for e in experiment:
+                try:
+                    records = list(handler(df, e))
+                except ValueError as err:
+                    Logger.error('%s %s: %s', path, e, err)
+                    continue
+                outgoing.put(records)
+            outgoing.put(None)
 
 if __name__ == '__main__':
     arguments = ArgumentParser()

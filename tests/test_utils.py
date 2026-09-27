@@ -35,24 +35,53 @@ class DatasetPathHandlerTestCase(unittest.TestCase):
             handler.relative_to('datasets/open-llm-leaderboard/contents')
 
 class QuestionBankTestCase(unittest.TestCase):
-    def test_path_appends_suffix_to_dotted_subject(self):
-        qbank = QuestionBank(Path('questions'), 'mmlu', 'u.s._history')
-        self.assertEqual(qbank.path, Path('questions', 'mmlu', 'u.s._history.jsonl'))
+    def make(self, tmp):
+        return QuestionBank(Path(tmp, 'questions.sqlite'))
 
-    def test_path_appends_suffix_to_plain_subject(self):
-        qbank = QuestionBank(Path('questions'), 'bbh', '_')
-        self.assertEqual(qbank.path, Path('questions', 'bbh', '_.jsonl'))
+    def test_put_then_get_round_trips_documents(self):
+        info = SubmissionInfo('mmlu', 'u.s._history', 'org', 'model')
+        documents = [Document('q1', 'history'), Document('q2', 'history')]
 
-    def test_printf_then_iter_round_trips_documents(self):
-        documents = [
-            Document('q1', {'doc': 'a'}),
-            Document('q2', {'doc': 'b'}),
-        ]
+        with tempfile.TemporaryDirectory() as tmp, self.make(tmp) as db:
+            db.put(info, documents)
+            result = list(db.get(info))
+
+        self.assertEqual(result, documents)
+
+    def test_put_ignores_a_doc_hash_already_present(self):
+        info = SubmissionInfo('mmlu', 'u.s._history', 'org', 'model')
+
+        with tempfile.TemporaryDirectory() as tmp, self.make(tmp) as db:
+            db.put(info, [Document('q1', 'history')])
+            db.put(info, [Document('q1', 'history')])
+            result = list(db.get(info))
+
+        self.assertEqual(result, [Document('q1', 'history')])
+
+    def test_get_is_scoped_to_its_own_benchmark_and_subject(self):
+        info_a = SubmissionInfo('mmlu', 'u.s._history', 'org', 'model')
+        info_b = SubmissionInfo('mmlu', 'anatomy', 'org', 'model')
+        info_c = SubmissionInfo('gpqa', 'u.s._history', 'org', 'model')
+
+        with tempfile.TemporaryDirectory() as tmp, self.make(tmp) as db:
+            db.put(info_a, [Document('q1', 'x')])
+            db.put(info_b, [Document('q2', 'y')])
+            db.put(info_c, [Document('q3', 'z')])
+            result = list(db.get(info_a))
+
+        self.assertEqual(result, [Document('q1', 'x')])
+
+    def test_documents_persist_across_separate_connections(self):
+        info = SubmissionInfo('mmlu', 'u.s._history', 'org', 'model')
+
         with tempfile.TemporaryDirectory() as tmp:
-            qbank = QuestionBank(Path(tmp), 'mmlu', 'u.s._history')
-            qbank.path.parent.mkdir(parents=True, exist_ok=True)
-            qbank.printf(documents)
-            self.assertEqual(list(qbank), documents)
+            with self.make(tmp) as db:
+                db.put(info, [Document('q1', 'history')])
+
+            with self.make(tmp) as db:
+                result = list(db.get(info))
+
+        self.assertEqual(result, [Document('q1', 'history')])
 
 class DatasetTestCase(unittest.TestCase):
     def test_from_fullname_splits_namespace_and_name(self):
