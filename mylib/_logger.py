@@ -11,4 +11,5 @@ logging.basicConfig(
 )
 logging.captureWarnings(True)
 logging.getLogger('httpx').setLevel(logging.WARNING)
+logging.getLogger('huggingface_hub').setLevel(logging.ERROR)
 Logger = logging.getLogger(__name__)
