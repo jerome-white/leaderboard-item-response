@@ -70,17 +70,15 @@ class Result:
         return self.date < other.date
 
 class DatasetFileSystem:
-    # HF doesn't send Retry-After; it implements the IETF RateLimit draft
-    # instead, e.g. RateLimit: "api";r=499;t=81 - t is seconds until reset.
     @staticmethod
-    def retry_after(err) -> int | None:
+    def retry(err) -> int | None:
         response = getattr(err, 'response', None)
         if response is None:
-            return None
+            return
 
         header = response.headers.get('RateLimit')
         if header is None:
-            return None
+            return
 
         for field in header.split(';'):
             (key, _, value) = field.strip().partition('=')
@@ -88,7 +86,7 @@ class DatasetFileSystem:
                 try:
                     return int(value)
                 except ValueError:
-                    return None
+                    break
 
     def __init__(self, backoff):
         self.backoff = backoff
@@ -102,7 +100,7 @@ class DatasetFileSystem:
                 yield from self.fs.ls(target)
                 break
             except Exception as err:
-                delay = self.retry_after(err) or delay
+                delay = self.retry(err) or delay
                 Logger.error(
                     '%s: %s (attempt=%d, backoff=%ds)',
                     type(err).__name__,
