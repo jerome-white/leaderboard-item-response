@@ -6,10 +6,12 @@ from pathlib import Path
 from argparse import ArgumentParser
 from dataclasses import dataclass, fields, asdict
 from multiprocessing import Pool, Queue
+from collections.abc import Iterator
 
 import pandas as pd
 
 from mylib import (
+    Document,
     Experiment,
     Logger,
     QuestionBank,
@@ -35,7 +37,7 @@ class BenchmarkHandler:
     def __init__(
             self,
             info: SubmissionInfo,
-            documents: QuestionBank,
+            documents: Iterator[Document],
             metric: str,
     ):
         self.info = info
@@ -129,31 +131,26 @@ def func(incoming, outgoing, experiment, args):
         'ifeval': InstructionFollowingEval,
     }[experiment.benchmark]
 
-    connection = QuestionBank.connect(args.question_bank)
+    with QuestionBank(args.question_bank) as db:
+        while True:
+            path = incoming.get()
+            Logger.info(path)
 
-    while True:
-        path = incoming.get()
-        Logger.info(path)
+            df = pd.read_csv(path, compression='gzip', memory_map=True)
 
-        df = pd.read_csv(path, compression='gzip', memory_map=True)
+            rel = path.relative_to(args.data_root)
+            info = SubmissionInfo.from_path(rel, '.csv.gz')
+            documents = db.get(info)
+            handler = Handler(info, documents)
 
-        rel = path.relative_to(args.data_root)
-        info = SubmissionInfo.from_path(rel, '.csv.gz')
-        documents = QuestionBank(
-            connection,
-            experiment.benchmark,
-            info.subject,
-        )
-        handler = Handler(info, documents)
-
-        for e in experiment:
-            try:
-                records = list(handler(df, e))
-            except ValueError as err:
-                Logger.error('%s %s: %s', path, e, err)
-                continue
-            outgoing.put(records)
-        outgoing.put(None)
+            for e in experiment:
+                try:
+                    records = list(handler(df, e))
+                except ValueError as err:
+                    Logger.error('%s %s: %s', path, e, err)
+                    continue
+                outgoing.put(records)
+            outgoing.put(None)
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
