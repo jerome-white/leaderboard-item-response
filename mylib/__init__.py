@@ -4,8 +4,10 @@ from ._db import (
 
 from ._utils import (
     Backoff,
-    Dataset,
     DatasetPathHandler,
+)
+from ._dtypes import (
+    Dataset,
     Document,
     Experiment,
     SubmissionInfo,

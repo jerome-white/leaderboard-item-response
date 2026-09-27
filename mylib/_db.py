@@ -1,5 +1,10 @@
-from sqlalchemy import Column, Text
+from pathlib import Path
+from collections.abc import Iterable, Iterator
+
+from sqlalchemy import Column, Text, create_engine, event, select
+from sqlalchemy.orm import Session as SqlAlchemySession
 from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.dialects.sqlite import insert
 
 from ._dtypes import Document, SubmissionInfo
 
@@ -21,7 +26,7 @@ class QuestionBank:
 
     def __init__(self, db: Path):
         self.db = db
-        self.engine = engine
+        self.engine = None
         self.connection = None
         self.documents = []
 
@@ -31,9 +36,8 @@ class QuestionBank:
 
         @event.listens_for(self.engine, 'connect')
         def set_sqlite_pragma(dbapi_connection, connection_record):
-            for item in self._pragma.items():
-                pragma = 'PRAGMA {}'.format('='.join(item))
-                dbapi_connection.execute(pragma)
+            for (k, v) in self._pragma.items():
+                dbapi_connection.execute(f'PRAGMA {k}={v}')
 
         Base.metadata.create_all(self.engine)
         self.session = SqlAlchemySession(self.engine)
@@ -56,35 +60,31 @@ class QuestionBank:
     def get(self, info: SubmissionInfo) -> Iterator[Document]:
         stmt = (
             select(
-                BenchmarkModel.doc_hash,
-                BenchmarkModel.label,
+                BenchmarkQuestion.doc_hash,
+                BenchmarkQuestion.label,
             )
             .where(
-                BenchmarkModel.benchmark == info.benchmark,
-                BenchmarkModel.subject == info.subject
+                BenchmarkQuestion.benchmark == info.benchmark,
+                BenchmarkQuestion.subject == info.subject
             )
         )
 
-        for result in self.session.execute(stmt):
+        for row in self.session.execute(stmt):
             yield Document(row.doc_hash, row.label)
 
     def put(self, info: SubmissionInfo, documents: Iterable[Document]) -> None:
         self.documents.clear()
         for doc in documents:
-            benchmark = BenchmarkModel(
-                benchmark=info.benchmark,
-                subject=info.subject,
-                doc_hash=doc.question,
-                label=doc.label
-            )
-            attrs = inspect(benchmark).mapper.column_attrs
             self.documents.append({
-                attrs.key: getattr(benchmark, c.key),
+                'benchmark': info.benchmark,
+                'subject': info.subject,
+                'doc_hash': doc.question,
+                'label': doc.label,
             })
 
         if self.documents:
             stmt = (
-                insert(BenchmarkModel)
+                insert(BenchmarkQuestion)
                 .values(self.documents)
                 .on_conflict_do_nothing()
             )

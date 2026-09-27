@@ -16,6 +16,7 @@ import fsspec
 import requests
 import pandas as pd
 from requests import HTTPError
+from sqlalchemy.exc import SQLAlchemyError
 from huggingface_hub.utils import GatedRepoError, build_hf_headers
 
 from mylib import (
@@ -24,7 +25,6 @@ from mylib import (
     Document,
     Logger,
     QuestionBank,
-    Session,
     SubmissionInfo,
 )
 
@@ -161,9 +161,9 @@ def func(queue: JoinableQueue, args):
     hf_reader = HfFileReader(Backoff(args.backoff, 0.1), args.retries)
     keys = [ x.name for x in fields(SubmissionInfo) ]
 
-    with QuestionBank(args.question_db) as db:
+    with QuestionBank(args.question_bank) as db:
         while True:
-            submission = tasks.get()
+            submission = queue.get()
             Logger.info(submission['path'])
 
             info = SubmissionInfo(*map(submission.get, keys))
@@ -191,7 +191,7 @@ if __name__ == '__main__':
 
     queue = JoinableQueue()
     initargs = (
-        tasks,
+        queue,
         args,
     )
 
