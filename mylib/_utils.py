@@ -3,6 +3,30 @@ import functools as ft
 from pathlib import Path
 from urllib.parse import ParseResult, urlunparse
 
+
+# HF doesn't send Retry-After; it implements the IETF RateLimit draft
+# instead:
+#
+#   RateLimit: "api";r=499;t=81
+#
+# where t is seconds until reset.
+def retry_after(err) -> int | None:
+    response = getattr(err, 'response', None)
+    if response is None:
+        return
+
+    header = response.headers.get('RateLimit')
+    if header is None:
+        return
+
+    for field in header.split(';'):
+        (key, _, value) = field.strip().partition('=')
+        if key == 't':
+            try:
+                return int(value)
+            except ValueError:
+                break
+
 class DatasetPathHandler:
     def __init__(self):
         kwargs = {
@@ -43,25 +67,6 @@ class DatasetPathHandler:
 
     def to_string(self, path):
         return urlunparse(self.to_url(path))
-
-# HF doesn't send Retry-After; it implements the IETF RateLimit draft
-# instead, e.g. RateLimit: "api";r=499;t=81 - t is seconds until reset.
-def retry_after(err) -> int | None:
-    response = getattr(err, 'response', None)
-    if response is None:
-        return None
-
-    header = response.headers.get('RateLimit')
-    if header is None:
-        return None
-
-    for field in header.split(';'):
-        (key, _, value) = field.strip().partition('=')
-        if key == 't':
-            try:
-                return int(value)
-            except ValueError:
-                break
 
 class Backoff:
     _backoff_factor = 2

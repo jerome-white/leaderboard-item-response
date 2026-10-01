@@ -125,7 +125,8 @@ class HfFileReader:
             except Exception as err:
                 last_err = err
                 Logger.error('%s: %s', type(err).__name__, err)
-            time.sleep(retry_after(last_err) or delay)
+            delay = retry_after(last_err) or delay
+            time.sleep(delay)
         raise_for_hf_reader_error(last_err, target)
 
 class SubmissionReader:
