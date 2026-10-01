@@ -38,7 +38,6 @@ class QuestionBank:
 
     def __init__(self, db: Path):
         self.db = db
-        self.connection = None
 
     def apply_pragma(self, connection: sqlite3.Connection) -> None:
         for (k, v) in self._pragma.items():
@@ -55,12 +54,11 @@ class QuestionBank:
         # creating the schema or switching the (brand new) database
         # into WAL mode for the first time - both need a lock that a
         # concurrent worker startup can otherwise collide on.
-        self.connection = sqlite3.connect(self.db)
+        connection = sqlite3.connect(self.db)
         try:
-            self.apply_pragma(self.connection)
+            self.apply_pragma(connection)
         finally:
-            self.connection.close()
-            self.connection = None
+            connection.close()
 
         engine = self.create_engine()
         try:
