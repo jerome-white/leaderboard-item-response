@@ -121,13 +121,14 @@ class FakeFile:
     def __exit__(self, *exc):
         return False
 
-class WriteCsvTestCase(unittest.TestCase):
+class AtomicWriterTestCase(unittest.TestCase):
     def test_writes_the_complete_file_and_leaves_no_temp_file(self):
         df = pd.DataFrame({'a': [1, 2], 'b': ['x', 'y']})
 
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp, 'result.csv.gz')
-            download_.write_csv(df, out)
+            with download_.AtomicWriter(out) as writer:
+                writer.write(df)
 
             self.assertEqual(list(Path(tmp).iterdir()), [out])
             result = pd.read_csv(out, compression='gzip')
@@ -142,9 +143,31 @@ class WriteCsvTestCase(unittest.TestCase):
 
             with patch.object(pd.DataFrame, 'to_csv', side_effect=OSError('disk full')):
                 with self.assertRaises(OSError):
-                    download_.write_csv(df, out)
+                    with download_.AtomicWriter(out) as writer:
+                        writer.write(df)
 
             self.assertFalse(out.exists())
+
+    def test_temp_file_shares_a_filesystem_with_the_destination(self):
+        # The temp file must live alongside the destination, or the
+        # final replace() can't be atomic - on POSIX, crossing
+        # filesystems raises rather than silently falling back to a
+        # copy, so this isn't just a performance nicety.
+        df = pd.DataFrame({'a': [1]})
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp, 'result.csv.gz')
+
+            with patch.object(
+                    download_,
+                    'NamedTemporaryFile',
+                    wraps=download_.NamedTemporaryFile,
+            ) as mock_ntf:
+                with download_.AtomicWriter(out) as writer:
+                    writer.write(df)
+
+            (_, kwargs) = mock_ntf.call_args
+            self.assertEqual(kwargs.get('dir'), out.parent)
 
 class HfFileReaderTestCase(unittest.TestCase):
     def make(self, retries=3):

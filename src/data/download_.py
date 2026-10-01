@@ -181,7 +181,10 @@ class AtomicWriter:
             self.source.replace(self.destination)
 
     def write(self, df: pd.DataFrame) -> None:
-        with NamedTemporaryFile(delete=False) as fp:
+        # Must share a filesystem with destination, or replace() below
+        # can't be atomic - and on POSIX, crossing filesystems doesn't
+        # silently fall back to a copy, it raises.
+        with NamedTemporaryFile(delete=False, dir=self.destination.parent) as fp:
             df.to_csv(fp, index=False, compression='gzip')
             self.source = Path(fp.name)
 
