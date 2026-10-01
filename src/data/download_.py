@@ -199,7 +199,8 @@ if __name__ == '__main__':
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
-    QuestionBank(args.question_bank).initialize()
+    qbank = QuestionBank(args.question_bank)
+    qbank.initialize()
 
     queue = JoinableQueue()
     initargs = (

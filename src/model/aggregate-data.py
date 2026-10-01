@@ -163,7 +163,8 @@ if __name__ == '__main__':
 
     experiment = Experiment(**json.loads(args.experiment.read_text()))
 
-    QuestionBank(args.question_bank).initialize()
+    qbank = QuestionBank(args.question_bank)
+    qbank.initialize()
 
     incoming = Queue()
     outgoing = Queue()

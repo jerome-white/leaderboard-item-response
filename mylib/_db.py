@@ -3,7 +3,14 @@ from pathlib import Path
 from types import TracebackType
 from collections.abc import Iterable, Iterator
 
-from sqlalchemy import Column, Engine, Text, create_engine as _create_engine, event, select
+from sqlalchemy import (
+    Column,
+    Engine,
+    Text,
+    create_engine,
+    event,
+    select,
+)
 from sqlalchemy.orm import Session as SqlAlchemySession
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.sqlite import insert
@@ -29,9 +36,9 @@ class QuestionBank:
         'synchronous': 'NORMAL',
     }
 
-    def __init__(self, db: Path) -> None:
+    def __init__(self, db: Path):
         self.db = db
-        self.connection: sqlite3.Connection | None = None
+        self.connection = None
 
     def apply_pragma(self, connection: sqlite3.Connection) -> None:
         for (k, v) in self._pragma.items():
@@ -39,7 +46,7 @@ class QuestionBank:
 
     def create_engine(self) -> Engine:
         db = self.db.resolve()
-        return _create_engine(f'sqlite:///{db}')
+        return create_engine(f'sqlite:///{db}')
 
     def initialize(self) -> None:
         self.db.parent.mkdir(parents=True, exist_ok=True)
@@ -62,13 +69,13 @@ class QuestionBank:
             engine.dispose()
 
 class QuestionBankWorker(QuestionBank):
-    def __init__(self, db: Path) -> None:
+    def __init__(self, db: Path):
         super().__init__(db)
         self.engine: Engine | None = None
         self.session: SqlAlchemySession | None = None
         self.documents: list[dict[str, str | None]] = []
 
-    def __enter__(self) -> 'QuestionBankWorker':
+    def __enter__(self):
         if not self.db.parent.is_dir():
             raise FileNotFoundError('Database not initialized')
         self.engine = self.create_engine()
@@ -82,12 +89,7 @@ class QuestionBankWorker(QuestionBank):
 
         return self
 
-    def __exit__(
-            self,
-            exc_type: type[BaseException] | None,
-            exc_value: BaseException | None,
-            traceback: TracebackType | None,
-    ) -> None:
+    def __exit__(self, exc_type, exc_value, traceback):
         if self.session:
             try:
                 if exc_type is None:
