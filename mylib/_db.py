@@ -1,3 +1,4 @@
+import sqlite3
 from pathlib import Path
 from collections.abc import Iterable, Iterator
 
@@ -18,11 +19,39 @@ class BenchmarkQuestion(Base):
     label     = Column(Text)
 
 class QuestionBank:
+    # busy_timeout must be set first: it's what makes a concurrent,
+    # lock-contending journal_mode switch wait and retry instead of
+    # raising "database is locked" immediately.
     _pragma = {
-        'journal_mode': 'WAL',
         'busy_timeout': 5000,
+        'journal_mode': 'WAL',
         'synchronous': 'NORMAL',
     }
+
+    @classmethod
+    def _apply_pragma(cls, dbapi_connection) -> None:
+        for (k, v) in cls._pragma.items():
+            dbapi_connection.execute(f'PRAGMA {k}={v}')
+
+    @classmethod
+    def initialize(cls, db: Path) -> None:
+        db.parent.mkdir(parents=True, exist_ok=True)
+
+        # Done once, up front, so workers never race each other over
+        # creating the schema or switching the (brand new) database
+        # into WAL mode for the first time - both need a lock that a
+        # concurrent worker startup can otherwise collide on.
+        connection = sqlite3.connect(db)
+        try:
+            cls._apply_pragma(connection)
+        finally:
+            connection.close()
+
+        engine = create_engine(f'sqlite:///{db.resolve()}')
+        try:
+            Base.metadata.create_all(engine)
+        finally:
+            engine.dispose()
 
     def __init__(self, db: Path):
         self.db = db
@@ -36,8 +65,7 @@ class QuestionBank:
 
         @event.listens_for(self.engine, 'connect')
         def set_sqlite_pragma(dbapi_connection, connection_record):
-            for (k, v) in self._pragma.items():
-                dbapi_connection.execute(f'PRAGMA {k}={v}')
+            self._apply_pragma(dbapi_connection)
 
         Base.metadata.create_all(self.engine)
         self.session = SqlAlchemySession(self.engine)
