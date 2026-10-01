@@ -1,8 +1,9 @@
 import sqlite3
 from pathlib import Path
+from types import TracebackType
 from collections.abc import Iterable, Iterator
 
-from sqlalchemy import Column, Text, create_engine, event, select
+from sqlalchemy import Column, Engine, Text, create_engine as _create_engine, event, select
 from sqlalchemy.orm import Session as SqlAlchemySession
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.sqlite import insert
@@ -28,18 +29,17 @@ class QuestionBank:
         'synchronous': 'NORMAL',
     }
 
-    def __init__(self, db: Path):
+    def __init__(self, db: Path) -> None:
         self.db = db
-        self.connection = None
+        self.connection: sqlite3.Connection | None = None
 
-    @staticmethod
-    def apply_pragma(self, connection=) -> None:
+    def apply_pragma(self, connection: sqlite3.Connection) -> None:
         for (k, v) in self._pragma.items():
             connection.execute(f'PRAGMA {k}={v}')
 
-    def create_engine(self):
+    def create_engine(self) -> Engine:
         db = self.db.resolve()
-        return create_engine(f'sqlite:///{db}')
+        return _create_engine(f'sqlite:///{db}')
 
     def initialize(self) -> None:
         self.db.parent.mkdir(parents=True, exist_ok=True)
@@ -50,9 +50,10 @@ class QuestionBank:
         # concurrent worker startup can otherwise collide on.
         self.connection = sqlite3.connect(self.db)
         try:
-            self._apply_pragma(self.connection)
+            self.apply_pragma(self.connection)
         finally:
             self.connection.close()
+            self.connection = None
 
         engine = self.create_engine()
         try:
@@ -61,26 +62,32 @@ class QuestionBank:
             engine.dispose()
 
 class QuestionBankWorker(QuestionBank):
-    def __init__(self, db: Path):
+    def __init__(self, db: Path) -> None:
         super().__init__(db)
-        self.engine = None
-        self.documents = []
+        self.engine: Engine | None = None
+        self.session: SqlAlchemySession | None = None
+        self.documents: list[dict[str, str | None]] = []
 
-    def __enter__(self):
+    def __enter__(self) -> 'QuestionBankWorker':
         if not self.db.parent.is_dir():
             raise FileNotFoundError('Database not initialized')
-        self.engine = create_engine()
+        self.engine = self.create_engine()
 
         @event.listens_for(self.engine, 'connect')
         def set_sqlite_pragma(dbapi_connection, connection_record):
-            self._apply_pragma(dbapi_connection)
+            self.apply_pragma(dbapi_connection)
 
         Base.metadata.create_all(self.engine)
         self.session = SqlAlchemySession(self.engine)
 
         return self
 
-    def __exit__(self, exc_type, exc_value, traceback):
+    def __exit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc_value: BaseException | None,
+            traceback: TracebackType | None,
+    ) -> None:
         if self.session:
             try:
                 if exc_type is None:
