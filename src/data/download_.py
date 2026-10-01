@@ -7,6 +7,7 @@ import functools as ft
 import statistics as st
 from typing import SupportsFloat
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from argparse import ArgumentParser
 from dataclasses import dataclass, fields, asdict, replace
 from urllib.parse import ParseResult, urlunparse
@@ -167,14 +168,22 @@ class SubmissionReader:
 #
 #
 #
-def write_csv(df: pd.DataFrame, out: Path) -> None:
-    # Write to a temp file alongside the target, then atomically rename
-    # into place (same filesystem, so Path.replace is atomic on POSIX).
-    # The canonical path then only ever holds a complete file or doesn't
-    # exist at all - never a partial one if the process is killed mid-write.
-    tmp = out.with_name(out.name + '.tmp')
-    df.to_csv(tmp, index=False, compression='gzip')
-    tmp.replace(out)
+class AtomicWriter:
+    def __init__(self, destination: Path):
+        self.destination = destination
+        self.source = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self.source is not None:
+            self.source.replace(self.destination)
+
+    def write(self, df: pd.DataFrame) -> None:
+        with NamedTemporaryFile(delete=False) as fp:
+            df.to_csv(fp, index=False, compression='gzip')
+            self.source = Path(fp.name)
 
 def func(queue: JoinableQueue, args):
     hf_reader = HfFileReader(Backoff(args.backoff, 0.1), args.retries)
@@ -194,7 +203,8 @@ def func(queue: JoinableQueue, args):
                 if not df.empty:
                     out = args.output.joinpath(info.to_path('.csv.gz'))
                     out.parent.mkdir(parents=True, exist_ok=True)
-                    write_csv(df, out)
+                    with AtomicWriter(out) as writer:
+                        writer.write(df)
                 db.put(info, reader.documents)
             except (PermissionError, ConnectionError, SQLAlchemyError) as err:
                 Logger.error('%s: %s', type(err), err)
