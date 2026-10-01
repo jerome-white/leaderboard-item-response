@@ -28,40 +28,48 @@ class QuestionBank:
         'synchronous': 'NORMAL',
     }
 
-    @classmethod
-    def _apply_pragma(cls, dbapi_connection) -> None:
-        for (k, v) in cls._pragma.items():
-            dbapi_connection.execute(f'PRAGMA {k}={v}')
+    def __init__(self, db: Path):
+        self.db = db
+        self.connection = None
 
-    @classmethod
-    def initialize(cls, db: Path) -> None:
-        db.parent.mkdir(parents=True, exist_ok=True)
+    @staticmethod
+    def apply_pragma(self, connection=) -> None:
+        for (k, v) in self._pragma.items():
+            connection.execute(f'PRAGMA {k}={v}')
+
+    def create_engine(self):
+        db = self.db.resolve()
+        return create_engine(f'sqlite:///{db}')
+
+    def initialize(self) -> None:
+        self.db.parent.mkdir(parents=True, exist_ok=True)
 
         # Done once, up front, so workers never race each other over
         # creating the schema or switching the (brand new) database
         # into WAL mode for the first time - both need a lock that a
         # concurrent worker startup can otherwise collide on.
-        connection = sqlite3.connect(db)
+        self.connection = sqlite3.connect(self.db)
         try:
-            cls._apply_pragma(connection)
+            self._apply_pragma(self.connection)
         finally:
-            connection.close()
+            self.connection.close()
 
-        engine = create_engine(f'sqlite:///{db.resolve()}')
+        engine = self.create_engine()
         try:
             Base.metadata.create_all(engine)
         finally:
             engine.dispose()
 
+class QuestionBankWorker(QuestionBank):
     def __init__(self, db: Path):
-        self.db = db
+        super().__init__(db)
         self.engine = None
-        self.connection = None
         self.documents = []
 
     def __enter__(self):
-        self.db.parent.mkdir(parents=True, exist_ok=True)
-        self.engine = create_engine(f'sqlite:///{self.db.resolve()}')
+        if not self.db.parent.is_dir():
+            raise FileNotFoundError('Database not initialized')
+        self.engine = create_engine()
 
         @event.listens_for(self.engine, 'connect')
         def set_sqlite_pragma(dbapi_connection, connection_record):
