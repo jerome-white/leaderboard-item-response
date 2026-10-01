@@ -167,6 +167,15 @@ class SubmissionReader:
 #
 #
 #
+def write_csv(df: pd.DataFrame, out: Path) -> None:
+    # Write to a temp file alongside the target, then atomically rename
+    # into place (same filesystem, so Path.replace is atomic on POSIX).
+    # The canonical path then only ever holds a complete file or doesn't
+    # exist at all - never a partial one if the process is killed mid-write.
+    tmp = out.with_name(out.name + '.tmp')
+    df.to_csv(tmp, index=False, compression='gzip')
+    tmp.replace(out)
+
 def func(queue: JoinableQueue, args):
     hf_reader = HfFileReader(Backoff(args.backoff, 0.1), args.retries)
     keys = [ x.name for x in fields(SubmissionInfo) ]

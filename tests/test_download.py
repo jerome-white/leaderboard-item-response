@@ -3,6 +3,7 @@ import queue
 import unittest
 import tempfile
 import importlib.util
+import pandas as pd
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
@@ -119,6 +120,31 @@ class FakeFile:
 
     def __exit__(self, *exc):
         return False
+
+class WriteCsvTestCase(unittest.TestCase):
+    def test_writes_the_complete_file_and_leaves_no_temp_file(self):
+        df = pd.DataFrame({'a': [1, 2], 'b': ['x', 'y']})
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp, 'result.csv.gz')
+            download_.write_csv(df, out)
+
+            self.assertEqual(list(Path(tmp).iterdir()), [out])
+            result = pd.read_csv(out, compression='gzip')
+
+        self.assertTrue(result.equals(df))
+
+    def test_leaves_no_partial_file_at_the_final_path_when_the_write_fails(self):
+        df = pd.DataFrame({'a': [1, 2]})
+
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp, 'result.csv.gz')
+
+            with patch.object(pd.DataFrame, 'to_csv', side_effect=OSError('disk full')):
+                with self.assertRaises(OSError):
+                    download_.write_csv(df, out)
+
+            self.assertFalse(out.exists())
 
 class HfFileReaderTestCase(unittest.TestCase):
     def make(self, retries=3):
