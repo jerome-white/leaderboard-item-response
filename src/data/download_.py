@@ -7,6 +7,7 @@ import functools as ft
 import statistics as st
 from typing import SupportsFloat
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 from argparse import ArgumentParser
 from dataclasses import dataclass, fields, asdict, replace
 from urllib.parse import ParseResult, urlunparse
@@ -167,6 +168,26 @@ class SubmissionReader:
 #
 #
 #
+class AtomicWriter:
+    def __init__(self, destination: Path):
+        self.destination = destination
+        self.source = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self.source is not None:
+            self.source.replace(self.destination)
+
+    def write(self, df: pd.DataFrame) -> None:
+        with NamedTemporaryFile(
+                delete=False,
+                dir=self.destination.parent, # ensure filesystem is shared
+        ) as fp:
+            df.to_csv(fp, index=False, compression='gzip')
+            self.source = Path(fp.name)
+
 def func(queue: JoinableQueue, args):
     hf_reader = HfFileReader(Backoff(args.backoff, 0.1), args.retries)
     keys = [ x.name for x in fields(SubmissionInfo) ]
@@ -185,7 +206,8 @@ def func(queue: JoinableQueue, args):
                 if not df.empty:
                     out = args.output.joinpath(info.to_path('.csv.gz'))
                     out.parent.mkdir(parents=True, exist_ok=True)
-                    df.to_csv(out, index=False, compression='gzip')
+                    with AtomicWriter(out) as writer:
+                        writer.write(df)
                 db.put(info, reader.documents)
             except (PermissionError, ConnectionError, SQLAlchemyError) as err:
                 Logger.error('%s: %s', type(err), err)
