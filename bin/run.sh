@@ -38,7 +38,7 @@ EOF
 done
 
 _responses=$_output/var/responses
-_questions=$_output/var/questions.sqlite
+_questions=$_output/var/questions/db.sqlite
 _results=$_output/opt
 _src=$ROOT/src
 
