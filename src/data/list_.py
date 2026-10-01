@@ -10,7 +10,7 @@ from multiprocessing import Pool, Queue
 from datasets import load_dataset
 from huggingface_hub import HfApi, HfFileSystem
 
-from mylib import Dataset, Logger, Backoff, DatasetPathHandler
+from mylib import Dataset, Logger, Backoff, DatasetPathHandler, retry_after
 
 class ModelIterator:
     _dtype = '-details'
@@ -70,24 +70,6 @@ class Result:
         return self.date < other.date
 
 class DatasetFileSystem:
-    @staticmethod
-    def retry(err) -> int | None:
-        response = getattr(err, 'response', None)
-        if response is None:
-            return
-
-        header = response.headers.get('RateLimit')
-        if header is None:
-            return
-
-        for field in header.split(';'):
-            (key, _, value) = field.strip().partition('=')
-            if key == 't':
-                try:
-                    return int(value)
-                except ValueError:
-                    break
-
     def __init__(self, backoff):
         self.backoff = backoff
         self.fs = HfFileSystem(expand_info=True)
@@ -100,7 +82,7 @@ class DatasetFileSystem:
                 yield from self.fs.ls(target)
                 break
             except Exception as err:
-                delay = self.retry(err) or delay
+                delay = retry_after(err) or delay
                 Logger.error(
                     '%s: %s (attempt=%d, backoff=%ds)',
                     type(err).__name__,

@@ -3,6 +3,7 @@ import sqlite3
 import tempfile
 import multiprocessing
 from pathlib import Path
+from types import SimpleNamespace
 
 from mylib import (
     Dataset,
@@ -11,12 +12,34 @@ from mylib import (
     QuestionBank,
     QuestionBankWorker,
     SubmissionInfo,
+    retry_after,
 )
 
 def _enter_question_bank(path, barrier):
     barrier.wait()
     with QuestionBankWorker(path):
         pass
+
+class _FakeHttpError(Exception):
+    def __init__(self, headers):
+        super().__init__('rate limited')
+        self.response = SimpleNamespace(headers=headers)
+
+class RetryAfterTestCase(unittest.TestCase):
+    def test_reads_seconds_until_reset_from_ratelimit_header(self):
+        err = _FakeHttpError({'RateLimit': '"api";r=499;t=81'})
+        self.assertEqual(retry_after(err), 81)
+
+    def test_is_none_without_a_response(self):
+        self.assertIsNone(retry_after(Exception('boom')))
+
+    def test_is_none_when_header_is_absent(self):
+        err = _FakeHttpError({})
+        self.assertIsNone(retry_after(err))
+
+    def test_is_none_when_t_field_is_not_numeric(self):
+        err = _FakeHttpError({'RateLimit': '"api";r=499;t=soon'})
+        self.assertIsNone(retry_after(err))
 
 class DatasetPathHandlerTestCase(unittest.TestCase):
     def test_strip_netloc_removes_prefix_when_present(self):
