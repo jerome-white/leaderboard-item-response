@@ -4,11 +4,18 @@ import tempfile
 import multiprocessing
 from pathlib import Path
 
-from mylib import Dataset, DatasetPathHandler, Document, QuestionBank, SubmissionInfo
+from mylib import (
+    Dataset,
+    DatasetPathHandler,
+    Document,
+    QuestionBank,
+    QuestionBankWorker,
+    SubmissionInfo,
+)
 
 def _enter_question_bank(path, barrier):
     barrier.wait()
-    with QuestionBank(path):
+    with QuestionBankWorker(path):
         pass
 
 class DatasetPathHandlerTestCase(unittest.TestCase):
@@ -43,7 +50,7 @@ class DatasetPathHandlerTestCase(unittest.TestCase):
 
 class QuestionBankTestCase(unittest.TestCase):
     def make(self, tmp):
-        return QuestionBank(Path(tmp, 'questions.sqlite'))
+        return QuestionBankWorker(Path(tmp, 'questions.sqlite'))
 
     def test_schema_keys_rows_by_doc_id_not_doc_hash(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -110,10 +117,17 @@ class QuestionBankTestCase(unittest.TestCase):
 
         self.assertEqual(result, [Document('q1', 'history')])
 
+    def test_worker_raises_when_not_initialized(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, 'subdir', 'questions.sqlite')
+            with self.assertRaises(FileNotFoundError):
+                with QuestionBankWorker(path):
+                    pass
+
     def test_initialize_creates_the_schema_on_its_own(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp, 'questions.sqlite')
-            QuestionBank.initialize(path)
+            QuestionBank(path).initialize()
 
             connection = sqlite3.connect(path)
             try:
@@ -130,7 +144,7 @@ class QuestionBankTestCase(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp, 'questions.sqlite')
-            QuestionBank.initialize(path)
+            QuestionBank(path).initialize()
 
             barrier = ctx.Barrier(8)
             processes = [

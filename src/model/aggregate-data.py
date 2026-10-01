@@ -15,6 +15,7 @@ from mylib import (
     Experiment,
     Logger,
     QuestionBank,
+    QuestionBankWorker,
     SubmissionInfo,
 )
 
@@ -131,7 +132,7 @@ def func(incoming, outgoing, experiment, args):
         'ifeval': InstructionFollowingEval,
     }[experiment.benchmark]
 
-    with QuestionBank(args.question_bank) as db:
+    with QuestionBankWorker(args.question_bank) as db:
         while True:
             path = incoming.get()
             Logger.info(path)
@@ -162,7 +163,7 @@ if __name__ == '__main__':
 
     experiment = Experiment(**json.loads(args.experiment.read_text()))
 
-    QuestionBank.initialize(args.question_bank)
+    QuestionBank(args.question_bank).initialize()
 
     incoming = Queue()
     outgoing = Queue()
