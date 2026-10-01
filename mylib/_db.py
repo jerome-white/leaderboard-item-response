@@ -1,7 +1,16 @@
+import sqlite3
 from pathlib import Path
+from types import TracebackType
 from collections.abc import Iterable, Iterator
 
-from sqlalchemy import Column, Text, create_engine, event, select
+from sqlalchemy import (
+    Column,
+    Engine,
+    Text,
+    create_engine,
+    event,
+    select,
+)
 from sqlalchemy.orm import Session as SqlAlchemySession
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.sqlite import insert
@@ -18,26 +27,60 @@ class BenchmarkQuestion(Base):
     label     = Column(Text)
 
 class QuestionBank:
+    # busy_timeout must be set first: it's what makes a concurrent,
+    # lock-contending journal_mode switch wait and retry instead of
+    # raising "database is locked" immediately.
     _pragma = {
-        'journal_mode': 'WAL',
         'busy_timeout': 5000,
+        'journal_mode': 'WAL',
         'synchronous': 'NORMAL',
     }
 
     def __init__(self, db: Path):
         self.db = db
-        self.engine = None
-        self.connection = None
-        self.documents = []
+
+    def apply_pragma(self, connection: sqlite3.Connection) -> None:
+        for (k, v) in self._pragma.items():
+            connection.execute(f'PRAGMA {k}={v}')
+
+    def create_engine(self) -> Engine:
+        db = self.db.resolve()
+        return create_engine(f'sqlite:///{db}')
+
+    def initialize(self) -> None:
+        self.db.parent.mkdir(parents=True, exist_ok=True)
+
+        # Done once, up front, so workers never race each other over
+        # creating the schema or switching the (brand new) database
+        # into WAL mode for the first time - both need a lock that a
+        # concurrent worker startup can otherwise collide on.
+        connection = sqlite3.connect(self.db)
+        try:
+            self.apply_pragma(connection)
+        finally:
+            connection.close()
+
+        engine = self.create_engine()
+        try:
+            Base.metadata.create_all(engine)
+        finally:
+            engine.dispose()
+
+class QuestionBankWorker(QuestionBank):
+    def __init__(self, db: Path):
+        super().__init__(db)
+        self.engine: Engine | None = None
+        self.session: SqlAlchemySession | None = None
+        self.documents: list[dict[str, str | None]] = []
 
     def __enter__(self):
-        self.db.parent.mkdir(parents=True, exist_ok=True)
-        self.engine = create_engine(f'sqlite:///{self.db.resolve()}')
+        if not self.db.parent.is_dir():
+            raise FileNotFoundError('Database not initialized')
+        self.engine = self.create_engine()
 
         @event.listens_for(self.engine, 'connect')
         def set_sqlite_pragma(dbapi_connection, connection_record):
-            for (k, v) in self._pragma.items():
-                dbapi_connection.execute(f'PRAGMA {k}={v}')
+            self.apply_pragma(dbapi_connection)
 
         Base.metadata.create_all(self.engine)
         self.session = SqlAlchemySession(self.engine)

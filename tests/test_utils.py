@@ -1,9 +1,22 @@
 import unittest
 import sqlite3
 import tempfile
+import multiprocessing
 from pathlib import Path
 
-from mylib import Dataset, DatasetPathHandler, Document, QuestionBank, SubmissionInfo
+from mylib import (
+    Dataset,
+    DatasetPathHandler,
+    Document,
+    QuestionBank,
+    QuestionBankWorker,
+    SubmissionInfo,
+)
+
+def _enter_question_bank(path, barrier):
+    barrier.wait()
+    with QuestionBankWorker(path):
+        pass
 
 class DatasetPathHandlerTestCase(unittest.TestCase):
     def test_strip_netloc_removes_prefix_when_present(self):
@@ -37,7 +50,7 @@ class DatasetPathHandlerTestCase(unittest.TestCase):
 
 class QuestionBankTestCase(unittest.TestCase):
     def make(self, tmp):
-        return QuestionBank(Path(tmp, 'questions.sqlite'))
+        return QuestionBankWorker(Path(tmp, 'questions.sqlite'))
 
     def test_schema_keys_rows_by_doc_id_not_doc_hash(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -103,6 +116,47 @@ class QuestionBankTestCase(unittest.TestCase):
                 result = list(db.get(info))
 
         self.assertEqual(result, [Document('q1', 'history')])
+
+    def test_worker_raises_when_not_initialized(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, 'subdir', 'questions.sqlite')
+            with self.assertRaises(FileNotFoundError):
+                with QuestionBankWorker(path):
+                    pass
+
+    def test_initialize_creates_the_schema_on_its_own(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, 'questions.sqlite')
+            QuestionBank(path).initialize()
+
+            connection = sqlite3.connect(path)
+            try:
+                tables = connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                ).fetchall()
+            finally:
+                connection.close()
+
+        self.assertIn(('benchmark_questions',), tables)
+
+    def test_workers_initialized_up_front_do_not_race_to_create_the_schema(self):
+        ctx = multiprocessing.get_context('fork')
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp, 'questions.sqlite')
+            QuestionBank(path).initialize()
+
+            barrier = ctx.Barrier(8)
+            processes = [
+                ctx.Process(target=_enter_question_bank, args=(path, barrier))
+                for _ in range(8)
+            ]
+            for p in processes:
+                p.start()
+            for p in processes:
+                p.join()
+
+        self.assertTrue(all(p.exitcode == 0 for p in processes))
 
 class DatasetTestCase(unittest.TestCase):
     def test_from_fullname_splits_namespace_and_name(self):

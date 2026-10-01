@@ -25,6 +25,7 @@ from mylib import (
     Document,
     Logger,
     QuestionBank,
+    QuestionBankWorker,
     SubmissionInfo,
 )
 
@@ -168,7 +169,7 @@ def func(queue: JoinableQueue, args):
     hf_reader = HfFileReader(Backoff(args.backoff, 0.1), args.retries)
     keys = [ x.name for x in fields(SubmissionInfo) ]
 
-    with QuestionBank(args.question_bank) as db:
+    with QuestionBankWorker(args.question_bank) as db:
         while True:
             submission = queue.get()
             Logger.info(submission['path'])
@@ -197,6 +198,9 @@ if __name__ == '__main__':
     arguments.add_argument('--retries', type=int, default=3)
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
+
+    qbank = QuestionBank(args.question_bank)
+    qbank.initialize()
 
     queue = JoinableQueue()
     initargs = (

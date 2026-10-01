@@ -1,5 +1,6 @@
 from ._db import (
     QuestionBank,
+    QuestionBankWorker,
 )
 
 from ._utils import (
