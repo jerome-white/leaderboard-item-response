@@ -27,6 +27,7 @@ from mylib import (
     QuestionBank,
     QuestionBankWorker,
     SubmissionInfo,
+    retry_after,
 )
 
 #
@@ -124,7 +125,7 @@ class HfFileReader:
             except Exception as err:
                 last_err = err
                 Logger.error('%s: %s', type(err).__name__, err)
-            time.sleep(delay)
+            time.sleep(retry_after(last_err) or delay)
         raise_for_hf_reader_error(last_err, target)
 
 class SubmissionReader:

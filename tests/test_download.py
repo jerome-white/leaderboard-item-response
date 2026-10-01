@@ -14,6 +14,11 @@ _spec = importlib.util.spec_from_file_location('download_', _path)
 download_ = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(download_)
 
+class _FakeHttpError(Exception):
+    def __init__(self, headers):
+        super().__init__('rate limited')
+        self.response = SimpleNamespace(headers=headers)
+
 class SubmissionReaderTestCase(unittest.TestCase):
     def test_store_extracts_the_label_for_a_known_benchmark(self):
         reader = download_.SubmissionReader(lambda path: iter([]), benchmark='mmlu')
@@ -176,6 +181,36 @@ class HfFileReaderTestCase(unittest.TestCase):
 
         self.assertEqual(result, [{'a': 1}])
         reader.ask.assert_not_called()
+
+    def test_sleeps_for_ratelimit_reset_instead_of_own_backoff(self):
+        reader = self.make(retries=3)
+
+        with patch.object(download_, 'fsspec') as mock_fsspec, \
+             patch.object(download_, 'time') as mock_time:
+            mock_fsspec.open.side_effect = [
+                _FakeHttpError({'RateLimit': '"api";r=0;t=81'}),
+                FakeFile([b'{"a": 1}\n']),
+            ]
+            result = list(reader(Path('datasets/org/repo-details/x/file.json')))
+
+        self.assertEqual(result, [{'a': 1}])
+        mock_time.sleep.assert_called_once_with(81)
+
+    def test_falls_back_to_own_backoff_without_ratelimit_header(self):
+        reader = self.make(retries=3)
+
+        with patch.object(download_, 'fsspec') as mock_fsspec, \
+             patch.object(download_, 'time') as mock_time:
+            mock_fsspec.open.side_effect = [
+                RuntimeError('peer closed connection'),
+                FakeFile([b'{"a": 1}\n']),
+            ]
+            result = list(reader(Path('datasets/org/repo-details/x/file.json')))
+
+        self.assertEqual(result, [{'a': 1}])
+        mock_time.sleep.assert_called_once()
+        (delay,) = mock_time.sleep.call_args.args
+        self.assertAlmostEqual(delay, 0.01, delta=0.005)
 
 if __name__ == '__main__':
     unittest.main()
