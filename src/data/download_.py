@@ -194,7 +194,7 @@ def func(queue: JoinableQueue, args):
                 if not df.empty:
                     out = args.output.joinpath(info.to_path('.csv.gz'))
                     out.parent.mkdir(parents=True, exist_ok=True)
-                    df.to_csv(out, index=False, compression='gzip')
+                    write_csv(df, out)
                 db.put(info, reader.documents)
             except (PermissionError, ConnectionError, SQLAlchemyError) as err:
                 Logger.error('%s: %s', type(err), err)
