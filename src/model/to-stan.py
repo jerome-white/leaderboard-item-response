@@ -22,8 +22,11 @@ if __name__ == '__main__':
     df = pd.read_csv(args.data_file, memory_map=True)
 
     score = df['score']
-    if not score.apply(float.is_integer).all():
-        raise TypeError(f'[ {args.data} ] Non-integer scores')
+    integers = (score
+                .apply(float.is_integer)
+                .all())
+    if not integers:
+        raise TypeError(f'[ {args.data_file} ] Non-integer scores')
 
     (i, j) = (df[x] for x in ('document_id', 'author_model_id'))
     data = {
