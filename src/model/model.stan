@@ -25,8 +25,6 @@ model {
   alpha ~ lognormal(0.5, 1);
   beta  ~ normal(0, 3);
   theta ~ normal(0, 1);
-  for (n in 1:N) {
-    eta[n] = alpha[q_i[n]] * (theta[p_j[n]] - beta[q_i[n]]);
-  }
+  eta = alpha[q_i] .* (theta[p_j] - beta[q_i]);
   y ~ bernoulli_logit(eta);
 }
