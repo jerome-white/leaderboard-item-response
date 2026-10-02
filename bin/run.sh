@@ -37,8 +37,8 @@ EOF
     esac
 done
 
-_responses=$_output/var/responses
-_questions=$_output/var/questions/db.sqlite
+_responses=$_output/hugging-face/responses
+_questions=$_output/hugging-face/questions/db.sqlite
 _results=$_output/opt
 _src=$ROOT/src
 
