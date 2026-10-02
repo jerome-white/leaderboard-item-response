@@ -14,15 +14,15 @@ data {
 }
 
 parameters {
-  vector<lower=0>[I] alpha; // discrimination for item i
+  vector[I] alpha;          // discrimination for item i
   vector[I] beta;           // difficulty for item i
   vector[J] theta;          // ability for person j
 }
 
 model {
   vector[N] eta;
-  
-  alpha ~ lognormal(0.5, 1);
+
+  alpha ~ normal(1, 1);
   beta  ~ normal(0, 3);
   theta ~ normal(0, 1);
   eta = alpha[q_i] .* (theta[p_j] - beta[q_i]);
