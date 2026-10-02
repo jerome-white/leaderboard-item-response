@@ -14,11 +14,7 @@ data {
 }
 
 parameters {
-  // discrimination for item i. Unconstrained: a negative value flags
-  // an item where higher ability predicts *lower* correctness
-  // (mis-keyed or corrupted), rather than just shrinking it toward
-  // uninformative, per Rodriguez et al. 2021's IRT-disc.
-  vector[I] alpha;
+  vector[I] alpha;          // discrimination for item i
   vector[I] beta;           // difficulty for item i
   vector[J] theta;          // ability for person j
 }
@@ -26,17 +22,6 @@ parameters {
 model {
   vector[N] eta;
 
-  // Symmetric and centered on a positive value: most items are
-  // expected to discriminate normally (mean 1, in the same range as
-  // the old lognormal(0.5, 1)'s typical values), but with enough
-  // mass below zero (~16%) that the likelihood can pull a genuinely
-  // bad item's alpha negative instead of just toward 0. The positive
-  // center also matters for identifiability: with alpha unconstrained,
-  // flipping the sign of every alpha, beta, and theta at once leaves
-  // eta unchanged, so a prior symmetric about 0 would leave that
-  // global reflection equally probable. Centering on +1 breaks the
-  // symmetry by making the all-negative mirror image far less likely
-  // a priori, while still letting individual items go negative.
   alpha ~ normal(1, 1);
   beta  ~ normal(0, 3);
   theta ~ normal(0, 1);
