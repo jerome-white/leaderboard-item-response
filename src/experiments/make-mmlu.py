@@ -7,10 +7,14 @@ from multiprocessing import Pool, Queue
 from mylib import Logger, Experiment
 
 def func(incoming: Queue, outgoing: Queue, output: Path):
+    subjects = []
     while True:
         subject = incoming.get()
 
-        experiment = Experiment('mmlu', subject, [subject])
+        subjects.clear()
+        subjects.append(subject)
+
+        experiment = Experiment('mmlu', subject, subjects)
         Logger.info(experiment)
 
         category = experiment.name.replace(' ', '-')
