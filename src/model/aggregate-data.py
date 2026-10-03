@@ -137,7 +137,7 @@ def func(incoming, outgoing, experiment, args):
             path = incoming.get()
             Logger.info(path)
 
-            df = pd.read_csv(path, compression='gzip', memory_map=True)
+            df = pd.read_csv(path, compression='gzip', memory_map=True, dtype={'document': str})
 
             rel = path.relative_to(args.data_root)
             info = SubmissionInfo.from_path(rel, '.csv.gz')
