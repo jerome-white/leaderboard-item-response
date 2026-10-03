@@ -154,7 +154,7 @@ class SubmissionReader:
 
     def results(self, path):
         for line in self.reader(path):
-            document = line['doc_id']
+            document = str(line['doc_id'])
             self.store(document, line)
             for (metric, score) in line.items():
                 if any(metric.find(x) >= 0 for x in self._metrics):
