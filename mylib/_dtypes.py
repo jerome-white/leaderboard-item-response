@@ -9,7 +9,7 @@ from collections.abc import Iterable, Iterator
 
 @dataclass
 class Document:
-    question: str
+    question: int
     label: str | None = None
 
 @dataclass(frozen=True)
