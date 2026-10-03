@@ -35,6 +35,20 @@ class SubmissionReaderTestCase(unittest.TestCase):
 
         self.assertEqual(reader.documents, [Document('q1', None)])
 
+    def test_results_normalizes_a_numeric_doc_id_to_a_string(self):
+        # Some benchmarks' doc_ids (e.g. MMLU-Pro) are plain JSON
+        # numbers rather than strings. The question bank stores
+        # doc_id as TEXT, so leaving this uncast means Document and
+        # Result end up with an int here but a str everywhere else
+        # doc ids are compared.
+        line = {'doc_id': 0, 'doc': {'category': 'algebra'}, 'acc': 1.0}
+        reader = download_.SubmissionReader(lambda path: iter([line]), benchmark='mmlu')
+
+        results = list(reader.results(Path('x')))
+
+        self.assertEqual(reader.documents, [Document('0', 'algebra')])
+        self.assertEqual([r.document for r in results], ['0'])
+
 class _BoundedQueue(queue.Queue):
     """A queue.Queue that raises Stop once drained, so func()'s
     infinite while-loop terminates instead of blocking forever."""
