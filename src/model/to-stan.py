@@ -3,6 +3,7 @@ import functools as ft
 from pathlib import Path
 from argparse import ArgumentParser
 
+import numpy as np
 import pandas as pd
 
 class MyEncoder(json.JSONEncoder):
@@ -13,6 +14,10 @@ class MyEncoder(json.JSONEncoder):
     @default.register
     def _(self, o: pd.Series):
         return o.to_list()
+
+    @default.register
+    def _(self, o: np.integer):
+        return int(o)
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
