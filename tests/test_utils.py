@@ -105,6 +105,20 @@ class QuestionBankTestCase(unittest.TestCase):
 
         self.assertEqual(result, documents)
 
+    def test_put_then_get_round_trips_a_numeric_doc_id_as_an_int(self):
+        # doc_id is the sample's positional index in lm-evaluation-
+        # harness output - structurally an integer, not an opaque
+        # label. A TEXT column would silently coerce it to a string
+        # on the way in.
+        info = SubmissionInfo('mmlu', 'physics', 'org', 'model')
+
+        with tempfile.TemporaryDirectory() as tmp, self.make(tmp) as db:
+            db.put(info, [Document(0, 'physics')])
+            result = list(db.get(info))
+
+        self.assertEqual(result, [Document(0, 'physics')])
+        self.assertIsInstance(result[0].question, int)
+
     def test_put_ignores_a_doc_id_already_present(self):
         info = SubmissionInfo('mmlu', 'u.s._history', 'org', 'model')
 
