@@ -6,6 +6,7 @@ from collections.abc import Iterable, Iterator
 from sqlalchemy import (
     Column,
     Engine,
+    Integer,
     Text,
     create_engine,
     event,
@@ -23,7 +24,7 @@ class BenchmarkQuestion(Base):
 
     benchmark = Column(Text, primary_key=True, nullable=False)
     subject   = Column(Text, primary_key=True, nullable=False)
-    doc_id    = Column(Text, primary_key=True, nullable=False)
+    doc_id    = Column(Integer, primary_key=True, nullable=False)
     label     = Column(Text)
 
 class QuestionBank:
