@@ -2,46 +2,28 @@ import json
 from pathlib import Path
 from argparse import ArgumentParser
 from dataclasses import asdict
-from multiprocessing import Pool
+from multiprocessing import Pool, Queue
 
 from mylib import Logger, Experiment
 
-def func(args):
-    (name, subjects, output) = args
+def func(incoming: Queue, outgoing: Queue, output: Path):
+    while True:
+        subject = incoming.get()
 
-    e = Experiment('mmlu', name, subjects)
-    Logger.info(e)
+        experiment = Experiment('mmlu', subject, [subject])
+        Logger.info(experiment)
 
-    category = e.name.replace(' ', '-')
-    out = (output
-           .joinpath(e.benchmark, category, 'experiment')
-           .with_suffix('.json'))
-    out.parent.mkdir(parents=True, exist_ok=True)
-    with out.open('w') as fp:
-        print(json.dumps(asdict(e), indent=2), file=fp)
+        category = experiment.name.replace(' ', '-')
+        out = (output
+               .joinpath(experiment.benchmark, category, 'experiment')
+               .with_suffix('.json'))
+        dump = json.dumps(asdict(experiment), indent=2)
 
-    return out
+        out.parent.mkdir(parents=True, exist_ok=True)
+        with out.open('w') as fp:
+            print(dump, file=fp)
 
-def each(args):
-    subjects = [
-        'history',
-        'law',
-        'philosophy',
-        'economics',
-        'psychology',
-        'biology',
-        'chemistry',
-        'physics',
-        'computer science',
-        'engineering',
-        'math',
-        'business',
-        'health',
-        # 'other',
-    ]
-
-    for s in subjects:
-        yield (s, [s], args.output)
+        outgoing.put(out)
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
@@ -49,6 +31,35 @@ if __name__ == '__main__':
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
-    with Pool(args.workers) as pool:
-        for i in pool.imap_unordered(func, each(args)):
-            print(i)
+    incoming = Queue()
+    outgoing = Queue()
+    initargs = (
+        outgoing,
+        incoming,
+        args.output,
+    )
+
+    with Pool(args.workers, func, initargs):
+        subjects = [
+            'biology',
+            'business',
+            'chemistry',
+            'computer science',
+            'economics',
+            'engineering',
+            'health',
+            'history',
+            'law',
+            'math',
+            # 'other',
+            'philosophy',
+            'psychology',
+            'physics',
+        ]
+
+        for s in subjects:
+            outgoing.put(s)
+
+        for _ in subjects:
+            dst = incoming.get()
+            print(dst)
