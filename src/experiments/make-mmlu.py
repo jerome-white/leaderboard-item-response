@@ -23,37 +23,25 @@ def func(args):
     return out
 
 def each(args):
-    categories = {
-        'humanities': [
-            'history',
-            'law',
-            'philosophy',
-        ],
-        'social science': [
-            'economics',
-            'psychology',
-        ],
-        'natural science': [
-            'biology',
-            'chemistry',
-            'physics',
-        ],
-        'formal science': [
-            'computer science',
-            'engineering',
-            'math',
-        ],
-        'applied science': [
-            'business',
-            'health',
-        ],
+    subjects = [
+        'history',
+        'law',
+        'philosophy',
+        'economics',
+        'psychology',
+        'biology',
+        'chemistry',
+        'physics',
+        'computer science',
+        'engineering',
+        'math',
+        'business',
+        'health',
         # 'other',
-    }
+    ]
 
-    for (k, subjects) in categories.items():
-        yield (k, subjects, args.output)
-        for s in subjects:
-            yield (s, [s], args.output)
+    for s in subjects:
+        yield (s, [s], args.output)
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
