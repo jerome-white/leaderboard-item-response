@@ -85,7 +85,7 @@ python $src/to-${j}.py --data-file $tmp > $out/$j.json
 EOF
                 done | parallel --will-cite --line-buffer
 
-                pigz --best $agg
+                pigz --best --force $agg
             done
         done
         ;;
