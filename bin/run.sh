@@ -5,7 +5,7 @@ HF_SAMPLES=0.5
 STAN_SAMPLES=1000
 STAN_WARMUP=500
 STAN_WORKERS=`nproc`
-CMDSTAN=
+CMDSTAN=$ROOT/cmdstan-2.40.0
 
 export PYTHONPATH=$ROOT
 export HF_DATASETS_DISABLE_PROGRESS_BARS=1
@@ -112,8 +112,9 @@ EOF
                 output \
                 file=$output/chain.csv \
                 num_threads=$STAN_WORKERS \
-                && stansummary --csv_filename=$summary $output/*.csv
-
+                && $CMDSTAN/bin/stansummary \
+		       --csv_filename=$summary \
+		       $output/*.csv
         done
         ;;
     4) # Hugging Face upload
