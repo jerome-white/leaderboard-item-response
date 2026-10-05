@@ -4,8 +4,10 @@ from types import TracebackType
 from collections.abc import Iterable, Iterator
 
 from sqlalchemy import (
+    Boolean,
     Column,
     Engine,
+    Float,
     Integer,
     Text,
     create_engine,
@@ -16,7 +18,7 @@ from sqlalchemy.orm import Session as SqlAlchemySession
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.sqlite import insert
 
-from ._dtypes import Document, SubmissionInfo
+from ._dtypes import Document, ModelInfo, SubmissionInfo
 
 Base = declarative_base()
 class BenchmarkQuestion(Base):
@@ -26,6 +28,16 @@ class BenchmarkQuestion(Base):
     subject   = Column(Text, primary_key=True, nullable=False)
     doc_id    = Column(Integer, primary_key=True, nullable=False)
     label     = Column(Text)
+
+class ModelMetadata(Base):
+    __tablename__ = 'models'
+
+    author    = Column(Text, primary_key=True, nullable=False)
+    model     = Column(Text, primary_key=True, nullable=False)
+    type      = Column(Text)
+    precision = Column(Text)
+    params    = Column(Float)
+    merged    = Column(Boolean)
 
 class MetadataBank:
     # busy_timeout must be set first: it's what makes a concurrent,
@@ -130,6 +142,42 @@ class MetadataBankWorker(MetadataBank):
             stmt = (
                 insert(BenchmarkQuestion)
                 .values(self.documents)
+                .on_conflict_do_nothing()
+            )
+
+            self.session.execute(stmt)
+            self.session.commit()
+
+    def get_models(self) -> Iterator[ModelInfo]:
+        stmt = select(
+            ModelMetadata.author,
+            ModelMetadata.model,
+            ModelMetadata.type,
+            ModelMetadata.precision,
+            ModelMetadata.params,
+            ModelMetadata.merged,
+        )
+
+        for row in self.session.execute(stmt):
+            yield ModelInfo(*row)
+
+    def put_models(self, models: Iterable[ModelInfo]) -> None:
+        rows = [
+            {
+                'author': m.author,
+                'model': m.model,
+                'type': m.type,
+                'precision': m.precision,
+                'params': m.params,
+                'merged': m.merged,
+            }
+            for m in models
+        ]
+
+        if rows:
+            stmt = (
+                insert(ModelMetadata)
+                .values(rows)
                 .on_conflict_do_nothing()
             )
 
