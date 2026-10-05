@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from mylib import Backoff
+from mylib import Backoff, ModelInfo
 
 _path = Path(__file__).resolve().parent.parent / 'src' / 'data' / 'list_.py'
 _spec = importlib.util.spec_from_file_location('list_', _path)
@@ -45,6 +45,35 @@ class DatasetFileSystemTestCase(unittest.TestCase):
         mock_time.sleep.assert_called_once()
         (delay,) = mock_time.sleep.call_args.args
         self.assertAlmostEqual(delay, 5, delta=0.5)
+
+class ModelMetadataTestCase(unittest.TestCase):
+    def test_extracts_fields_from_every_row_regardless_of_flagged_status(self):
+        rows = [
+            {
+                'fullname': 'org/model-a',
+                'Type': 'chat',
+                'Precision': 'bfloat16',
+                '#Params (B)': 7.0,
+                'Merged': False,
+                'Flagged': True,
+            },
+            {
+                'fullname': 'org/model-b',
+                'Type': 'merge',
+                'Precision': 'float16',
+                '#Params (B)': 13.0,
+                'Merged': True,
+                'Flagged': False,
+            },
+        ]
+
+        with patch.object(list_, 'load_dataset', return_value=rows):
+            result = list(list_.model_metadata('open-llm-leaderboard'))
+
+        self.assertEqual(result, [
+            ModelInfo('org', 'model-a', 'chat', 'bfloat16', 7.0, False),
+            ModelInfo('org', 'model-b', 'merge', 'float16', 13.0, True),
+        ])
 
 if __name__ == '__main__':
     unittest.main()
