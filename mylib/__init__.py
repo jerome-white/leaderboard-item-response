@@ -12,6 +12,7 @@ from ._dtypes import (
     Dataset,
     Document,
     Experiment,
+    ModelInfo,
     SubmissionInfo,
 )
 from ._logger import Logger

@@ -11,6 +11,7 @@ from mylib import (
     Document,
     MetadataBank,
     MetadataBankWorker,
+    ModelInfo,
     SubmissionInfo,
     retry_after,
 )
@@ -105,6 +106,28 @@ class MetadataBankTestCase(unittest.TestCase):
 
         self.assertEqual(result, documents)
 
+    def test_put_then_get_round_trips_models(self):
+        models = [
+            ModelInfo('org', 'model-a', 'chat', 'bfloat16', 7.0, False),
+            ModelInfo('org', 'model-b', 'merge', 'float16', 13.0, True),
+        ]
+
+        with tempfile.TemporaryDirectory() as tmp, self.make(tmp) as db:
+            db.put_models(models)
+            result = list(db.get_models())
+
+        self.assertCountEqual(result, models)
+
+    def test_put_ignores_a_model_already_present(self):
+        model = ModelInfo('org', 'model-a', 'chat', 'bfloat16', 7.0, False)
+
+        with tempfile.TemporaryDirectory() as tmp, self.make(tmp) as db:
+            db.put_models([model])
+            db.put_models([model])
+            result = list(db.get_models())
+
+        self.assertEqual(result, [model])
+
     def test_put_then_get_round_trips_a_numeric_doc_id_as_an_int(self):
         # doc_id is the sample's positional index in lm-evaluation-
         # harness output - structurally an integer, not an opaque
@@ -175,6 +198,7 @@ class MetadataBankTestCase(unittest.TestCase):
                 connection.close()
 
         self.assertIn(('benchmark_questions',), tables)
+        self.assertIn(('models',), tables)
 
     def test_workers_initialized_up_front_do_not_race_to_create_the_schema(self):
         ctx = multiprocessing.get_context('fork')

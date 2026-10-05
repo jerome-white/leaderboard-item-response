@@ -12,6 +12,15 @@ class Document:
     question: int
     label: str | None = None
 
+@dataclass
+class ModelInfo:
+    author: str
+    model: str
+    type: str | None = None
+    precision: str | None = None
+    params: float | None = None
+    merged: bool | None = None
+
 @dataclass(frozen=True)
 class Dataset:
     namespace: str
