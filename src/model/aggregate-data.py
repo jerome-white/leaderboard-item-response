@@ -14,8 +14,8 @@ from mylib import (
     Document,
     Experiment,
     Logger,
-    QuestionBank,
-    QuestionBankWorker,
+    MetadataBank,
+    MetadataBankWorker,
     SubmissionInfo,
 )
 
@@ -132,7 +132,7 @@ def func(incoming, outgoing, experiment, args):
         'ifeval': InstructionFollowingEval,
     }[experiment.benchmark]
 
-    with QuestionBankWorker(args.question_bank) as db:
+    with MetadataBankWorker(args.question_bank) as db:
         while True:
             path = incoming.get()
             Logger.info(path)
@@ -141,7 +141,7 @@ def func(incoming, outgoing, experiment, args):
 
             rel = path.relative_to(args.data_root)
             info = SubmissionInfo.from_path(rel, '.csv.gz')
-            documents = db.get(info)
+            documents = db.get_questions(info)
             handler = Handler(info, documents)
 
             for e in experiment:
@@ -163,7 +163,7 @@ if __name__ == '__main__':
 
     experiment = Experiment(**json.loads(args.experiment.read_text()))
 
-    qbank = QuestionBank(args.question_bank)
+    qbank = MetadataBank(args.question_bank)
     qbank.initialize()
 
     incoming = Queue()

@@ -25,8 +25,8 @@ from mylib import (
     DatasetPathHandler,
     Document,
     Logger,
-    QuestionBank,
-    QuestionBankWorker,
+    MetadataBank,
+    MetadataBankWorker,
     SubmissionInfo,
     retry_after,
 )
@@ -192,7 +192,7 @@ def func(queue: JoinableQueue, args):
     hf_reader = HfFileReader(Backoff(args.backoff, 0.1), args.retries)
     keys = [ x.name for x in fields(SubmissionInfo) ]
 
-    with QuestionBankWorker(args.question_bank) as db:
+    with MetadataBankWorker(args.question_bank) as db:
         while True:
             submission = queue.get()
             Logger.info(submission['path'])
@@ -208,7 +208,7 @@ def func(queue: JoinableQueue, args):
                     out.parent.mkdir(parents=True, exist_ok=True)
                     with AtomicWriter(out) as writer:
                         writer.write(df)
-                db.put(info, reader.documents)
+                db.put_questions(info, reader.documents)
             except (PermissionError, ConnectionError, SQLAlchemyError) as err:
                 Logger.error('%s: %s', type(err), err)
             finally:
@@ -223,7 +223,7 @@ if __name__ == '__main__':
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
-    qbank = QuestionBank(args.question_bank)
+    qbank = MetadataBank(args.question_bank)
     qbank.initialize()
 
     queue = JoinableQueue()

@@ -27,7 +27,7 @@ class BenchmarkQuestion(Base):
     doc_id    = Column(Integer, primary_key=True, nullable=False)
     label     = Column(Text)
 
-class QuestionBank:
+class MetadataBank:
     # busy_timeout must be set first: it's what makes a concurrent,
     # lock-contending journal_mode switch wait and retry instead of
     # raising "database is locked" immediately.
@@ -67,7 +67,7 @@ class QuestionBank:
         finally:
             engine.dispose()
 
-class QuestionBankWorker(QuestionBank):
+class MetadataBankWorker(MetadataBank):
     def __init__(self, db: Path):
         super().__init__(db)
         self.engine: Engine | None = None
@@ -101,7 +101,7 @@ class QuestionBankWorker(QuestionBank):
         if self.engine:
             self.engine.dispose()
 
-    def get(self, info: SubmissionInfo) -> Iterator[Document]:
+    def get_questions(self, info: SubmissionInfo) -> Iterator[Document]:
         stmt = (
             select(
                 BenchmarkQuestion.doc_id,
@@ -116,7 +116,7 @@ class QuestionBankWorker(QuestionBank):
         for row in self.session.execute(stmt):
             yield Document(row.doc_id, row.label)
 
-    def put(self, info: SubmissionInfo, documents: Iterable[Document]) -> None:
+    def put_questions(self, info: SubmissionInfo, documents: Iterable[Document]) -> None:
         self.documents.clear()
         for doc in documents:
             self.documents.append({

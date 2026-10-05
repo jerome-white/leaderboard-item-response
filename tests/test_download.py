@@ -8,7 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 
-from mylib import Backoff, Document, QuestionBankWorker, SubmissionInfo
+from mylib import Backoff, Document, MetadataBankWorker, SubmissionInfo
 
 _path = Path(__file__).resolve().parent.parent / 'src' / 'data' / 'download_.py'
 _spec = importlib.util.spec_from_file_location('download_', _path)
@@ -72,8 +72,8 @@ class FuncTestCase(unittest.TestCase):
             download_.func(tasks, args)
 
     def documents(self, args):
-        with QuestionBankWorker(args.question_bank) as db:
-            return list(db.get(self._info))
+        with MetadataBankWorker(args.question_bank) as db:
+            return list(db.get_questions(self._info))
 
     def test_writes_results_and_documents_on_success(self):
         rows = [

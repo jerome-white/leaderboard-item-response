@@ -6,7 +6,7 @@ import pandas as pd
 from pathlib import Path
 from types import SimpleNamespace
 
-from mylib import Document, Experiment, QuestionBank, QuestionBankWorker, SubmissionInfo
+from mylib import Document, Experiment, MetadataBank, MetadataBankWorker, SubmissionInfo
 
 _path = Path(__file__).resolve().parent.parent / 'src' / 'model' / 'aggregate-data.py'
 _spec = importlib.util.spec_from_file_location('aggregate_data', _path)
@@ -47,11 +47,11 @@ class FuncTestCase(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
             qbank_path = tmp.joinpath('questions.sqlite')
-            QuestionBank(qbank_path).initialize()
+            MetadataBank(qbank_path).initialize()
 
             info = SubmissionInfo('mmlu', 'pro', 'org', 'model-x')
-            with QuestionBankWorker(qbank_path) as db:
-                db.put(info, [Document(0, 'physics'), Document(1, 'law')])
+            with MetadataBankWorker(qbank_path) as db:
+                db.put_questions(info, [Document(0, 'physics'), Document(1, 'law')])
 
             data_root = tmp.joinpath('responses')
             path = data_root.joinpath(info.to_path('.csv.gz'))

@@ -9,15 +9,15 @@ from mylib import (
     Dataset,
     DatasetPathHandler,
     Document,
-    QuestionBank,
-    QuestionBankWorker,
+    MetadataBank,
+    MetadataBankWorker,
     SubmissionInfo,
     retry_after,
 )
 
 def _enter_question_bank(path, barrier):
     barrier.wait()
-    with QuestionBankWorker(path):
+    with MetadataBankWorker(path):
         pass
 
 class _FakeHttpError(Exception):
@@ -71,9 +71,9 @@ class DatasetPathHandlerTestCase(unittest.TestCase):
         with self.assertRaises(AttributeError):
             handler.relative_to('datasets/open-llm-leaderboard/contents')
 
-class QuestionBankTestCase(unittest.TestCase):
+class MetadataBankTestCase(unittest.TestCase):
     def make(self, tmp):
-        return QuestionBankWorker(Path(tmp, 'questions.sqlite'))
+        return MetadataBankWorker(Path(tmp, 'questions.sqlite'))
 
     def test_schema_keys_rows_by_doc_id_not_doc_hash(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -100,8 +100,8 @@ class QuestionBankTestCase(unittest.TestCase):
         documents = [Document('q1', 'history'), Document('q2', 'history')]
 
         with tempfile.TemporaryDirectory() as tmp, self.make(tmp) as db:
-            db.put(info, documents)
-            result = list(db.get(info))
+            db.put_questions(info, documents)
+            result = list(db.get_questions(info))
 
         self.assertEqual(result, documents)
 
@@ -113,8 +113,8 @@ class QuestionBankTestCase(unittest.TestCase):
         info = SubmissionInfo('mmlu', 'physics', 'org', 'model')
 
         with tempfile.TemporaryDirectory() as tmp, self.make(tmp) as db:
-            db.put(info, [Document(0, 'physics')])
-            result = list(db.get(info))
+            db.put_questions(info, [Document(0, 'physics')])
+            result = list(db.get_questions(info))
 
         self.assertEqual(result, [Document(0, 'physics')])
         self.assertIsInstance(result[0].question, int)
@@ -123,9 +123,9 @@ class QuestionBankTestCase(unittest.TestCase):
         info = SubmissionInfo('mmlu', 'u.s._history', 'org', 'model')
 
         with tempfile.TemporaryDirectory() as tmp, self.make(tmp) as db:
-            db.put(info, [Document('q1', 'history')])
-            db.put(info, [Document('q1', 'history')])
-            result = list(db.get(info))
+            db.put_questions(info, [Document('q1', 'history')])
+            db.put_questions(info, [Document('q1', 'history')])
+            result = list(db.get_questions(info))
 
         self.assertEqual(result, [Document('q1', 'history')])
 
@@ -135,10 +135,10 @@ class QuestionBankTestCase(unittest.TestCase):
         info_c = SubmissionInfo('gpqa', 'u.s._history', 'org', 'model')
 
         with tempfile.TemporaryDirectory() as tmp, self.make(tmp) as db:
-            db.put(info_a, [Document('q1', 'x')])
-            db.put(info_b, [Document('q2', 'y')])
-            db.put(info_c, [Document('q3', 'z')])
-            result = list(db.get(info_a))
+            db.put_questions(info_a, [Document('q1', 'x')])
+            db.put_questions(info_b, [Document('q2', 'y')])
+            db.put_questions(info_c, [Document('q3', 'z')])
+            result = list(db.get_questions(info_a))
 
         self.assertEqual(result, [Document('q1', 'x')])
 
@@ -147,10 +147,10 @@ class QuestionBankTestCase(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             with self.make(tmp) as db:
-                db.put(info, [Document('q1', 'history')])
+                db.put_questions(info, [Document('q1', 'history')])
 
             with self.make(tmp) as db:
-                result = list(db.get(info))
+                result = list(db.get_questions(info))
 
         self.assertEqual(result, [Document('q1', 'history')])
 
@@ -158,13 +158,13 @@ class QuestionBankTestCase(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp, 'subdir', 'questions.sqlite')
             with self.assertRaises(FileNotFoundError):
-                with QuestionBankWorker(path):
+                with MetadataBankWorker(path):
                     pass
 
     def test_initialize_creates_the_schema_on_its_own(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp, 'questions.sqlite')
-            QuestionBank(path).initialize()
+            MetadataBank(path).initialize()
 
             connection = sqlite3.connect(path)
             try:
@@ -181,7 +181,7 @@ class QuestionBankTestCase(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp, 'questions.sqlite')
-            QuestionBank(path).initialize()
+            MetadataBank(path).initialize()
 
             barrier = ctx.Barrier(8)
             processes = [

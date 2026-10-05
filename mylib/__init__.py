@@ -1,6 +1,6 @@
 from ._db import (
-    QuestionBank,
-    QuestionBankWorker,
+    MetadataBank,
+    MetadataBankWorker,
 )
 
 from ._utils import (
