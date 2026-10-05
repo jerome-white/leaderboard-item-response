@@ -10,7 +10,16 @@ from multiprocessing import Pool, Queue
 from datasets import load_dataset
 from huggingface_hub import HfApi, HfFileSystem
 
-from mylib import Dataset, Logger, Backoff, DatasetPathHandler, retry_after
+from mylib import (
+    Dataset,
+    Logger,
+    Backoff,
+    DatasetPathHandler,
+    MetadataBank,
+    MetadataBankWorker,
+    ModelInfo,
+    retry_after,
+)
 
 class ModelIterator:
     _dtype = '-details'
@@ -53,6 +62,19 @@ class UnflaggedModels(ModelIterator):
         ds = replace(dataset, name=name)
 
         return ds not in self.datasets
+
+def model_metadata(author):
+    dataset = Dataset(author, 'contents')
+    for row in load_dataset(str(dataset), split='train'):
+        ds = Dataset.from_fullname(row['fullname'])
+        yield ModelInfo(
+            author=ds.namespace,
+            model=ds.name,
+            type=row['Type'],
+            precision=row['Precision'],
+            params=row['#Params (B)'],
+            merged=row['Merged'],
+        )
 
 #
 #
@@ -148,8 +170,14 @@ if __name__ == '__main__':
     arguments.add_argument('--author', default='open-llm-leaderboard')
     arguments.add_argument('--backoff', type=float, default=15)
     arguments.add_argument('--exclude-flagged', action='store_true')
+    arguments.add_argument('--question-bank', type=Path)
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
+
+    if args.question_bank is not None:
+        MetadataBank(args.question_bank).initialize()
+        with MetadataBankWorker(args.question_bank) as db:
+            db.put_models(model_metadata(args.author))
 
     fieldnames = [ x.name for x in fields(Result) ]
     writer = csv.DictWriter(sys.stdout, fieldnames=fieldnames)
