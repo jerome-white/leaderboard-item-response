@@ -16,7 +16,14 @@ data {
 parameters {
   vector[I] alpha;          // discrimination for item i
   vector[I] beta;           // difficulty for item i
-  vector[J] theta;          // ability for person j
+  vector[J - 2] theta_free; // ability for persons 3..J
+}
+
+transformed parameters {
+  // Persons 1-2 anchor theta's location/scale to resolve #45's
+  // non-identifiability - cheaper and far better-conditioned than
+  // standardizing the whole vector every leapfrog step.
+  vector[J] theta = append_row([0, 1]', theta_free);
 }
 
 model {
@@ -24,7 +31,7 @@ model {
 
   alpha ~ normal(1, 1);
   beta  ~ normal(0, 3);
-  theta ~ normal(0, 1);
+  theta_free ~ normal(0, 1);
   eta = alpha[q_i] .* (theta[p_j] - beta[q_i]);
   y ~ bernoulli_logit(eta);
 }
