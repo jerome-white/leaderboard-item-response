@@ -15,9 +15,8 @@ from mylib import (
     Logger,
     Backoff,
     DatasetPathHandler,
-    MetadataBank,
-    MetadataBankWorker,
-    ModelInfo,
+    ModelDatabase,
+    ModelMetadata,
     retry_after,
 )
 
@@ -67,10 +66,10 @@ def model_metadata(author):
     dataset = Dataset(author, 'contents')
     for row in load_dataset(str(dataset), split='train'):
         ds = Dataset.from_fullname(row['fullname'])
-        yield ModelInfo(
+        yield ModelMetadata(
             author=ds.namespace,
             model=ds.name,
-            type=row['Type'],
+            mtype=row['Type'],
             precision=row['Precision'],
             params=row['#Params (B)'],
             merged=row['Merged'],
@@ -175,9 +174,9 @@ if __name__ == '__main__':
     args = arguments.parse_args()
 
     if args.question_bank is not None:
-        MetadataBank(args.question_bank).initialize()
-        with MetadataBankWorker(args.question_bank) as db:
-            db.put_models(model_metadata(args.author))
+        ModelDatabase(args.question_bank).initialize()
+        with ModelDatabase(args.question_bank) as db:
+            db.put(model_metadata(args.author))
 
     fieldnames = [ x.name for x in fields(Result) ]
     writer = csv.DictWriter(sys.stdout, fieldnames=fieldnames)

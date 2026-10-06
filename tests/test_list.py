@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from mylib import Backoff, ModelInfo
+from mylib import Backoff, ModelMetadata
 
 _path = Path(__file__).resolve().parent.parent / 'src' / 'data' / 'list_.py'
 _spec = importlib.util.spec_from_file_location('list_', _path)
@@ -71,8 +71,8 @@ class ModelMetadataTestCase(unittest.TestCase):
             result = list(list_.model_metadata('open-llm-leaderboard'))
 
         self.assertEqual(result, [
-            ModelInfo('org', 'model-a', 'chat', 'bfloat16', 7.0, False),
-            ModelInfo('org', 'model-b', 'merge', 'float16', 13.0, True),
+            ModelMetadata('org', 'model-a', 'chat', 'bfloat16', 7.0, False),
+            ModelMetadata('org', 'model-b', 'merge', 'float16', 13.0, True),
         ])
 
 if __name__ == '__main__':
