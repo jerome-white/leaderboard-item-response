@@ -1,5 +1,4 @@
 import sqlite3
-from types import TracebackType
 from pathlib import Path
 from dataclasses import asdict
 from collections.abc import Iterable, Iterator
@@ -22,10 +21,9 @@ from sqlalchemy.orm import (
     Session as SqlAlchemySession,
     mapped_column,
 )
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.sqlite import insert
 
-from ._dtypes import Document, ModelInfo, SubmissionInfo
+from ._dtypes import SubmissionInfo
 
 #
 #
@@ -136,9 +134,9 @@ class DatabaseClient(LeaderboardDatabase):
     def get(self, *args, **kwargs) -> Iterator:
         raise NotImplementedError()
 
-    def put(self, values: Iterable, *args, **kwargs) -> None:
+    def put(self, values: Iterable) -> None:
         self.values.clear()
-        self.values.extend(self.gather(values, *args, **kwargs))
+        self.values.extend(values)
 
         if self.values:
             items = list(map(asdict, self.values))
@@ -151,57 +149,23 @@ class DatabaseClient(LeaderboardDatabase):
             self.session.execute(stmt)
             self.session.commit()
 
-    def gather(self, values: Iterable, *args, **kwargs) -> None:
-        raise NotImplementedError()
-
 class QuestionDatabase(DatabaseClient):
     def __init__(self, db: Path):
         super().__init__(db, BenchmarkQuestion)
 
-    def get(self, info: SubmissionInfo) -> Iterator[Document]:
-        stmt = (
-            select(
-                self.model.doc_id,
-                self.model.label,
-            )
-            .where(
-                self.model.benchmark == info.benchmark,
-                self.model.subject == info.subject
-            )
+    def get(self, info: SubmissionInfo) -> Iterator[BenchmarkQuestion]:
+        stmt = select(self.model).where(
+            self.model.benchmark == info.benchmark,
+            self.model.subject == info.subject,
         )
 
-        for row in self.session.execute(stmt):
-            yield Document(row.doc_id, row.label)
-
-    def gather(
-            self,
-            values: Iterable[Document],
-            info: SubmissionInfo,
-    ) -> Iterator[Base]:
-        for doc in values:
-            yield BenchmarkQuestion(
-                benchmark=info.benchmark,
-                subject=info.subject,
-                doc_id=doc.question,
-                label=doc.label,
-            )
+        yield from self.session.execute(stmt).scalars()
 
 class ModelDatabase(DatabaseClient):
     def __init__(self, db: Path):
         super().__init__(db, ModelMetadata)
 
-    def get(self) -> Iterator[ModelInfo]:
+    def get(self) -> Iterator[ModelMetadata]:
         stmt = select(self.model)
-        for row in self.session.execute(stmt).scalars():
-            yield ModelInfo(*row)
 
-    def gather(self, values: Iterable[ModelInfo]) -> Iterator[Base]:
-        for model in values:
-            yield ModelMetadata(
-                author=model.author,
-                model=model.model,
-                mtype=model.mtype,
-                precision=model.precision,
-                params=model.params,
-                merged=model.merged,
-            )
+        yield from self.session.execute(stmt).scalars()

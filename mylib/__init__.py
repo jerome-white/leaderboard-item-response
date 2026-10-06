@@ -1,6 +1,9 @@
 from ._db import (
-    MetadataBank,
-    MetadataBankWorker,
+    BenchmarkQuestion,
+    LeaderboardDatabase,
+    ModelDatabase,
+    ModelMetadata,
+    QuestionDatabase,
 )
 
 from ._utils import (
@@ -10,9 +13,7 @@ from ._utils import (
 )
 from ._dtypes import (
     Dataset,
-    Document,
     Experiment,
-    ModelInfo,
     SubmissionInfo,
 )
 from ._logger import Logger
