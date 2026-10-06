@@ -6,6 +6,7 @@ import importlib.util
 import pandas as pd
 from pathlib import Path
 from types import SimpleNamespace
+from contextlib import contextmanager
 from unittest.mock import patch, MagicMock
 
 from mylib import Backoff, BenchmarkQuestion, QuestionDatabase, SubmissionInfo
@@ -79,9 +80,14 @@ class FuncTestCase(unittest.TestCase):
         with self.assertRaises(_BoundedQueue.Stop):
             download_.func(tasks, args)
 
+    @contextmanager
     def documents(self, args):
+        # A context manager, not a plain return: get() results are
+        # live, session-attached entities that must be consumed
+        # before this with-block closes, or touching them raises
+        # DetachedInstanceError.
         with QuestionDatabase(args.question_bank) as db:
-            return list(db.get(self._info))
+            yield list(db.get(self._info))
 
     def test_writes_results_and_documents_on_success(self):
         rows = [
@@ -99,15 +105,15 @@ class FuncTestCase(unittest.TestCase):
 
             out = Path(tmp, 'mmlu', 'algebra', 'org', 'x.csv.gz')
             self.assertTrue(out.exists())
-            documents = self.documents(args)
 
-        self.assertCountEqual(
-            documents,
-            [
-                BenchmarkQuestion('mmlu', 'algebra', 'q1', 'algebra'),
-                BenchmarkQuestion('mmlu', 'algebra', 'q2', 'algebra'),
-            ],
-        )
+            with self.documents(args) as documents:
+                self.assertCountEqual(
+                    documents,
+                    [
+                        BenchmarkQuestion('mmlu', 'algebra', 'q1', 'algebra'),
+                        BenchmarkQuestion('mmlu', 'algebra', 'q2', 'algebra'),
+                    ],
+                )
 
     def test_skips_output_and_documents_when_the_reader_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -118,9 +124,9 @@ class FuncTestCase(unittest.TestCase):
                 self.run_func(args)
 
             self.assertEqual(list(Path(tmp).rglob('*.csv.gz')), [])
-            documents = self.documents(args)
 
-        self.assertEqual(documents, [])
+            with self.documents(args) as documents:
+                self.assertEqual(documents, [])
 
 class FakeFile:
     def __init__(self, lines):
