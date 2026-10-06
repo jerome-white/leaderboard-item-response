@@ -11,11 +11,10 @@ from collections.abc import Iterator
 import pandas as pd
 
 from mylib import (
-    Document,
+    BenchmarkQuestion,
     Experiment,
     Logger,
-    MetadataBank,
-    MetadataBankWorker,
+    QuestionDatabase,
     SubmissionInfo,
 )
 
@@ -38,7 +37,7 @@ class BenchmarkHandler:
     def __init__(
             self,
             info: SubmissionInfo,
-            documents: Iterator[Document],
+            documents: Iterator[BenchmarkQuestion],
             metric: str,
     ):
         self.info = info
@@ -85,7 +84,7 @@ class IndexedCategoryBenchmark(BenchmarkHandler):
 
     def load(self):
         for d in self.documents:
-            yield (d.question, d.label)
+            yield (d.doc_id, d.label)
 
     def handle(self, subject, observations):
         for o in observations:
@@ -132,7 +131,7 @@ def func(incoming, outgoing, experiment, args):
         'ifeval': InstructionFollowingEval,
     }[experiment.benchmark]
 
-    with MetadataBankWorker(args.question_bank) as db:
+    with QuestionDatabase(args.question_bank) as db:
         while True:
             path = incoming.get()
             Logger.info(path)
@@ -141,7 +140,7 @@ def func(incoming, outgoing, experiment, args):
 
             rel = path.relative_to(args.data_root)
             info = SubmissionInfo.from_path(rel, '.csv.gz')
-            documents = db.get_questions(info)
+            documents = db.get(info)
             handler = Handler(info, documents)
 
             for e in experiment:
@@ -163,7 +162,7 @@ if __name__ == '__main__':
 
     experiment = Experiment(**json.loads(args.experiment.read_text()))
 
-    qbank = MetadataBank(args.question_bank)
+    qbank = QuestionDatabase(args.question_bank)
     qbank.initialize()
 
     incoming = Queue()
