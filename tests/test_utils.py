@@ -107,7 +107,13 @@ class QuestionDatabaseTestCase(unittest.TestCase):
             db.put(documents)
             result = list(db.get(info))
 
-        self.assertEqual(result, documents)
+            # Compared while the session is still open. get() returns
+            # live, session-attached entities - the session's own
+            # commit on __exit__ (and any other commit) expires their
+            # attributes, and touching them afterward raises
+            # DetachedInstanceError. Entities must be consumed before
+            # their originating `with` block closes.
+            self.assertEqual(result, documents)
 
     def test_put_then_get_round_trips_a_numeric_doc_id_as_an_int(self):
         # doc_id is the sample's positional index in lm-evaluation-
@@ -121,8 +127,8 @@ class QuestionDatabaseTestCase(unittest.TestCase):
             db.put([document])
             result = list(db.get(info))
 
-        self.assertEqual(result, [document])
-        self.assertIsInstance(result[0].doc_id, int)
+            self.assertEqual(result, [document])
+            self.assertIsInstance(result[0].doc_id, int)
 
     def test_put_ignores_a_doc_id_already_present(self):
         info = SubmissionInfo('mmlu', 'u.s._history', 'org', 'model')
@@ -133,7 +139,7 @@ class QuestionDatabaseTestCase(unittest.TestCase):
             db.put([document])
             result = list(db.get(info))
 
-        self.assertEqual(result, [document])
+            self.assertEqual(result, [document])
 
     def test_get_is_scoped_to_its_own_benchmark_and_subject(self):
         info_a = SubmissionInfo('mmlu', 'u.s._history', 'org', 'model')
@@ -145,7 +151,7 @@ class QuestionDatabaseTestCase(unittest.TestCase):
             db.put([doc_a, doc_b, doc_c])
             result = list(db.get(info_a))
 
-        self.assertEqual(result, [doc_a])
+            self.assertEqual(result, [doc_a])
 
     def test_documents_persist_across_separate_connections(self):
         info = SubmissionInfo('mmlu', 'u.s._history', 'org', 'model')
@@ -157,8 +163,7 @@ class QuestionDatabaseTestCase(unittest.TestCase):
 
             with self.make(tmp) as db:
                 result = list(db.get(info))
-
-        self.assertEqual(result, [document])
+                self.assertEqual(result, [document])
 
     def test_worker_raises_when_not_initialized(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -216,7 +221,7 @@ class ModelDatabaseTestCase(unittest.TestCase):
             db.put(models)
             result = list(db.get())
 
-        self.assertCountEqual(result, models)
+            self.assertCountEqual(result, models)
 
     def test_put_ignores_a_model_already_present(self):
         model = ModelMetadata('org', 'model-a', 'chat', 'bfloat16', 7.0, False)
@@ -226,7 +231,7 @@ class ModelDatabaseTestCase(unittest.TestCase):
             db.put([model])
             result = list(db.get())
 
-        self.assertEqual(result, [model])
+            self.assertEqual(result, [model])
 
 class DatasetTestCase(unittest.TestCase):
     def test_from_fullname_splits_namespace_and_name(self):
