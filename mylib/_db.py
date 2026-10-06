@@ -1,6 +1,7 @@
 import sqlite3
-from pathlib import Path
 from types import TracebackType
+from pathlib import Path
+from dataclasses import asdict
 from collections.abc import Iterable, Iterator
 
 from sqlalchemy import (
@@ -14,32 +15,46 @@ from sqlalchemy import (
     event,
     select,
 )
-from sqlalchemy.orm import Session as SqlAlchemySession
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Mapped,
+    MappedAsDataclass,
+    Session as SqlAlchemySession,
+    mapped_column,
+)
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.dialects.sqlite import insert
 
 from ._dtypes import Document, ModelInfo, SubmissionInfo
 
-Base = declarative_base()
-class BenchmarkQuestion(Base):
-    __tablename__ = 'benchmark_questions'
+#
+#
+#
+class Base(MappedAsDataclass, DeclarativeBase):
+    pass
 
-    benchmark = Column(Text, primary_key=True, nullable=False)
-    subject   = Column(Text, primary_key=True, nullable=False)
-    doc_id    = Column(Integer, primary_key=True, nullable=False)
-    label     = Column(Text)
+class BenchmarkQuestion(Base):
+    __tablename__ = 'questions'
+
+    benchmark: Mapped[str] = mapped_column(Text, primary_key=True)
+    subject:   Mapped[str] = mapped_column(Text, primary_key=True)
+    doc_id:    Mapped[int] = mapped_column(Integer, primary_key=True)
+    label:     Mapped[str | None] = mapped_column(Text, default=None)
 
 class ModelMetadata(Base):
     __tablename__ = 'models'
 
-    author    = Column(Text, primary_key=True, nullable=False)
-    model     = Column(Text, primary_key=True, nullable=False)
-    type      = Column(Text)
-    precision = Column(Text)
-    params    = Column(Float)
-    merged    = Column(Boolean)
+    author:    Mapped[str] = mapped_column(Text, primary_key=True)
+    model:     Mapped[str] = mapped_column(Text, primary_key=True)
+    mtype:     Mapped[str | None] = mapped_column(Text, default=None)
+    precision: Mapped[str | None] = mapped_column(Text, default=None)
+    params:    Mapped[float | None] = mapped_column(Float, default=None)
+    merged:    Mapped[bool | None] = mapped_column(Boolean, default=None)
 
-class MetadataBank:
+#
+#
+#
+class LeaderboardDatabase:
     # busy_timeout must be set first: it's what makes a concurrent,
     # lock-contending journal_mode switch wait and retry instead of
     # raising "database is locked" immediately.
@@ -79,12 +94,17 @@ class MetadataBank:
         finally:
             engine.dispose()
 
-class MetadataBankWorker(MetadataBank):
-    def __init__(self, db: Path):
+#
+#
+#
+class DatabaseClient(LeaderboardDatabase):
+    def __init__(self, db: Path, model: Base):
         super().__init__(db)
-        self.engine: Engine | None = None
-        self.session: SqlAlchemySession | None = None
-        self.documents: list[dict[str, str | None]] = []
+
+        self.model = model
+        self.engine = None
+        self.session = None
+        self.values = []
 
     def __enter__(self):
         if not self.db.parent.is_dir():
@@ -113,73 +133,75 @@ class MetadataBankWorker(MetadataBank):
         if self.engine:
             self.engine.dispose()
 
-    def get_questions(self, info: SubmissionInfo) -> Iterator[Document]:
+    def get(self, *args, **kwargs) -> Iterator:
+        raise NotImplementedError()
+
+    def put(self, values: Iterable, *args, **kwargs) -> None:
+        self.values.clear()
+        self.values.extend(self.gather(values, *args, **kwargs))
+
+        if self.values:
+            items = list(map(asdict, self.values))
+            stmt = (
+                insert(self.model)
+                .values(items)
+                .on_conflict_do_nothing()
+            )
+
+            self.session.execute(stmt)
+            self.session.commit()
+
+    def gather(self, values: Iterable, *args, **kwargs) -> None:
+        raise NotImplementedError()
+
+class QuestionDatabase(DatabaseClient):
+    def __init__(self, db: Path):
+        super().__init__(db, BenchmarkQuestion)
+
+    def get(self, info: SubmissionInfo) -> Iterator[Document]:
         stmt = (
             select(
-                BenchmarkQuestion.doc_id,
-                BenchmarkQuestion.label,
+                self.model.doc_id,
+                self.model.label,
             )
             .where(
-                BenchmarkQuestion.benchmark == info.benchmark,
-                BenchmarkQuestion.subject == info.subject
+                self.model.benchmark == info.benchmark,
+                self.model.subject == info.subject
             )
         )
 
         for row in self.session.execute(stmt):
             yield Document(row.doc_id, row.label)
 
-    def put_questions(self, info: SubmissionInfo, documents: Iterable[Document]) -> None:
-        self.documents.clear()
-        for doc in documents:
-            self.documents.append({
-                'benchmark': info.benchmark,
-                'subject': info.subject,
-                'doc_id': doc.question,
-                'label': doc.label,
-            })
-
-        if self.documents:
-            stmt = (
-                insert(BenchmarkQuestion)
-                .values(self.documents)
-                .on_conflict_do_nothing()
+    def gather(
+            self,
+            values: Iterable[Document],
+            info: SubmissionInfo,
+    ) -> Iterator[Base]:
+        for doc in values:
+            yield BenchmarkQuestion(
+                benchmark=info.benchmark,
+                subject=info.subject,
+                doc_id=doc.question,
+                label=doc.label,
             )
 
-            self.session.execute(stmt)
-            self.session.commit()
+class ModelDatabase(DatabaseClient):
+    def __init__(self, db: Path):
+        super().__init__(db, ModelMetadata)
 
-    def get_models(self) -> Iterator[ModelInfo]:
-        stmt = select(
-            ModelMetadata.author,
-            ModelMetadata.model,
-            ModelMetadata.type,
-            ModelMetadata.precision,
-            ModelMetadata.params,
-            ModelMetadata.merged,
-        )
-
-        for row in self.session.execute(stmt):
+    def get(self) -> Iterator[ModelInfo]:
+        stmt = select(self.model)
+        for row in self.session.execute(stmt).scalars():
             yield ModelInfo(*row)
 
-    def put_models(self, models: Iterable[ModelInfo]) -> None:
-        rows = [
-            {
-                'author': m.author,
-                'model': m.model,
-                'type': m.type,
-                'precision': m.precision,
-                'params': m.params,
-                'merged': m.merged,
-            }
-            for m in models
-        ]
-
-        if rows:
-            stmt = (
-                insert(ModelMetadata)
-                .values(rows)
-                .on_conflict_do_nothing()
+    def gather(self, values: Iterable[ModelInfo]) -> Iterator[Base]:
+        for model in values:
+            yield ModelMetadata(
+                author=model.author,
+                model=model.model,
+                mtype=model.mtype,
+                precision=model.precision,
+                params=model.params,
+                merged=model.merged,
             )
-
-            self.session.execute(stmt)
-            self.session.commit()
