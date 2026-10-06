@@ -38,7 +38,7 @@ EOF
 done
 
 _responses=$_output/hugging-face/responses
-_questions=$_output/hugging-face/questions/db.sqlite
+_database=$_output/hugging-face/metadata/db.sqlite
 _results=$_output/opt
 _src=$ROOT/src
 
@@ -54,12 +54,13 @@ hf auth login --token $HF_BEARER_TOKEN &> $err || {
 case $_step in
     1) # Hugging Face download
         src=$_src/data
+        python $src/initialize_.py --database $_database
         python $src/list_.py --exclude-flagged \
             | python $src/gather_.py \
             | python $src/reduce_.py --corpus $_responses \
             | python $src/download_.py \
                      --output $_responses \
-                     --question-bank $_questions
+                     --database $_database
         ;;
     2) # Stan preparation
         src=$_src/model
@@ -75,7 +76,7 @@ case $_step in
                 agg=$out/${script}.csv
                 python $src/${script}.py \
                        --data-root $_responses \
-                       --question-bank $_questions \
+                       --database $_database \
                        --experiment $REPLY > $agg
 
                 python $src/build-ids.py < $agg > $tmp

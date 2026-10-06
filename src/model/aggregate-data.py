@@ -131,7 +131,7 @@ def func(incoming, outgoing, experiment, args):
         'ifeval': InstructionFollowingEval,
     }[experiment.benchmark]
 
-    with QuestionDatabase(args.question_bank) as db:
+    with QuestionDatabase(args.database) as db:
         while True:
             path = incoming.get()
             Logger.info(path)
@@ -155,15 +155,12 @@ def func(incoming, outgoing, experiment, args):
 if __name__ == '__main__':
     arguments = ArgumentParser()
     arguments.add_argument('--data-root', type=Path)
-    arguments.add_argument('--question-bank', type=Path)
+    arguments.add_argument('--database', type=Path)
     arguments.add_argument('--experiment', type=Path)
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
     experiment = Experiment(**json.loads(args.experiment.read_text()))
-
-    qbank = QuestionDatabase(args.question_bank)
-    qbank.initialize()
 
     incoming = Queue()
     outgoing = Queue()

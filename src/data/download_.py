@@ -197,7 +197,7 @@ def func(queue: JoinableQueue, args):
     hf_reader = HfFileReader(Backoff(args.backoff, 0.1), args.retries)
     keys = [ x.name for x in fields(SubmissionInfo) ]
 
-    with QuestionDatabase(args.question_bank) as db:
+    with QuestionDatabase(args.database) as db:
         while True:
             submission = queue.get()
             Logger.info(submission['path'])
@@ -222,14 +222,11 @@ def func(queue: JoinableQueue, args):
 if __name__ == '__main__':
     arguments = ArgumentParser()
     arguments.add_argument('--output', type=Path)
-    arguments.add_argument('--question-bank', type=Path)
+    arguments.add_argument('--database', type=Path)
     arguments.add_argument('--backoff', type=float, default=2)
     arguments.add_argument('--retries', type=int, default=3)
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
-
-    qbank = QuestionDatabase(args.question_bank)
-    qbank.initialize()
 
     queue = JoinableQueue()
     initargs = (

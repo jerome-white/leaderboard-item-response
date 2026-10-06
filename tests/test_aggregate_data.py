@@ -6,7 +6,13 @@ import pandas as pd
 from pathlib import Path
 from types import SimpleNamespace
 
-from mylib import BenchmarkQuestion, Experiment, QuestionDatabase, SubmissionInfo
+from mylib import (
+    BenchmarkQuestion,
+    Experiment,
+    LeaderboardDatabase,
+    QuestionDatabase,
+    SubmissionInfo,
+)
 
 _path = Path(__file__).resolve().parent.parent / 'src' / 'model' / 'aggregate-data.py'
 _spec = importlib.util.spec_from_file_location('aggregate_data', _path)
@@ -50,7 +56,7 @@ class FuncTestCase(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
             qbank_path = tmp.joinpath('questions.sqlite')
-            QuestionDatabase(qbank_path).initialize()
+            LeaderboardDatabase(qbank_path).initialize()
 
             info = SubmissionInfo('mmlu', 'pro', 'org', 'model-x')
             with QuestionDatabase(qbank_path) as db:
@@ -71,7 +77,7 @@ class FuncTestCase(unittest.TestCase):
             }).to_csv(path, index=False, compression='gzip')
 
             experiment = Experiment('mmlu', 'physics', ['physics'])
-            args = SimpleNamespace(data_root=data_root, question_bank=qbank_path)
+            args = SimpleNamespace(data_root=data_root, database=qbank_path)
 
             incoming = _BoundedQueue()
             incoming.put(path)

@@ -69,7 +69,7 @@ class FuncTestCase(unittest.TestCase):
     def make_args(self, tmp):
         return SimpleNamespace(
             output=Path(tmp),
-            question_bank=Path(tmp, 'questions.sqlite'),
+            database=Path(tmp, 'questions.sqlite'),
             backoff=0.01,
             retries=1,
         )
@@ -86,7 +86,7 @@ class FuncTestCase(unittest.TestCase):
         # live, session-attached entities that must be consumed
         # before this with-block closes, or touching them raises
         # DetachedInstanceError.
-        with QuestionDatabase(args.question_bank) as db:
+        with QuestionDatabase(args.database) as db:
             yield list(db.get(self._info))
 
     def test_writes_results_and_documents_on_success(self):
