@@ -22,11 +22,10 @@ from huggingface_hub.utils import GatedRepoError, build_hf_headers
 
 from mylib import (
     Backoff,
+    BenchmarkQuestion,
     DatasetPathHandler,
-    Document,
     Logger,
-    MetadataBank,
-    MetadataBankWorker,
+    QuestionDatabase,
     SubmissionInfo,
     retry_after,
 )
@@ -140,9 +139,10 @@ class SubmissionReader:
         'gpqa': 'High-level domain',
     }
 
-    def __init__(self, reader, benchmark=None):
+    def __init__(self, reader, info: SubmissionInfo):
         self.reader = reader
-        self.subject = self._subjects.get(benchmark)
+        self.info = info
+        self.subject = self._subjects.get(info.benchmark)
         self.documents = []
 
     def __call__(self, submission):
@@ -160,9 +160,14 @@ class SubmissionReader:
                 if any(metric.find(x) >= 0 for x in self._metrics):
                     yield Result(document, metric, score)
 
-    def store(self, doc, info):
-        label = info['doc'][self.subject] if self.subject else None
-        document = Document(doc, label)
+    def store(self, doc, line):
+        label = line['doc'][self.subject] if self.subject else None
+        document = BenchmarkQuestion(
+            benchmark=self.info.benchmark,
+            subject=self.info.subject,
+            doc_id=doc,
+            label=label,
+        )
         self.documents.append(document)
 
 #
@@ -192,7 +197,7 @@ def func(queue: JoinableQueue, args):
     hf_reader = HfFileReader(Backoff(args.backoff, 0.1), args.retries)
     keys = [ x.name for x in fields(SubmissionInfo) ]
 
-    with MetadataBankWorker(args.question_bank) as db:
+    with QuestionDatabase(args.question_bank) as db:
         while True:
             submission = queue.get()
             Logger.info(submission['path'])
@@ -200,7 +205,7 @@ def func(queue: JoinableQueue, args):
             info = SubmissionInfo(*map(submission.get, keys))
             if not info.subject:
                 info = replace(info, subject='_')
-            reader = SubmissionReader(hf_reader, submission.get('benchmark'))
+            reader = SubmissionReader(hf_reader, info)
             try:
                 df = pd.DataFrame.from_records(reader(submission))
                 if not df.empty:
@@ -208,7 +213,7 @@ def func(queue: JoinableQueue, args):
                     out.parent.mkdir(parents=True, exist_ok=True)
                     with AtomicWriter(out) as writer:
                         writer.write(df)
-                db.put_questions(info, reader.documents)
+                db.put(reader.documents)
             except (PermissionError, ConnectionError, SQLAlchemyError) as err:
                 Logger.error('%s: %s', type(err), err)
             finally:
@@ -223,7 +228,7 @@ if __name__ == '__main__':
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
-    qbank = MetadataBank(args.question_bank)
+    qbank = QuestionDatabase(args.question_bank)
     qbank.initialize()
 
     queue = JoinableQueue()

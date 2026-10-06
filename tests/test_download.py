@@ -8,7 +8,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 
-from mylib import Backoff, Document, MetadataBankWorker, SubmissionInfo
+from mylib import Backoff, BenchmarkQuestion, QuestionDatabase, SubmissionInfo
 
 _path = Path(__file__).resolve().parent.parent / 'src' / 'data' / 'download_.py'
 _spec = importlib.util.spec_from_file_location('download_', _path)
@@ -22,18 +22,26 @@ class _FakeHttpError(Exception):
 
 class SubmissionReaderTestCase(unittest.TestCase):
     def test_store_extracts_the_label_for_a_known_benchmark(self):
-        reader = download_.SubmissionReader(lambda path: iter([]), benchmark='mmlu')
+        info = SubmissionInfo('mmlu', 'algebra', 'org', 'model')
+        reader = download_.SubmissionReader(lambda path: iter([]), info)
 
         reader.store('q1', {'doc': {'category': 'algebra'}})
 
-        self.assertEqual(reader.documents, [Document('q1', 'algebra')])
+        self.assertEqual(
+            reader.documents,
+            [BenchmarkQuestion('mmlu', 'algebra', 'q1', 'algebra')],
+        )
 
     def test_store_leaves_the_label_unset_for_an_unmapped_benchmark(self):
-        reader = download_.SubmissionReader(lambda path: iter([]), benchmark='bbh')
+        info = SubmissionInfo('bbh', 'boolean_expressions', 'org', 'model')
+        reader = download_.SubmissionReader(lambda path: iter([]), info)
 
         reader.store('q1', {'doc': {'category': 'algebra'}})
 
-        self.assertEqual(reader.documents, [Document('q1', None)])
+        self.assertEqual(
+            reader.documents,
+            [BenchmarkQuestion('bbh', 'boolean_expressions', 'q1', None)],
+        )
 
 class _BoundedQueue(queue.Queue):
     """A queue.Queue that raises Stop once drained, so func()'s
@@ -72,8 +80,8 @@ class FuncTestCase(unittest.TestCase):
             download_.func(tasks, args)
 
     def documents(self, args):
-        with MetadataBankWorker(args.question_bank) as db:
-            return list(db.get_questions(self._info))
+        with QuestionDatabase(args.question_bank) as db:
+            return list(db.get(self._info))
 
     def test_writes_results_and_documents_on_success(self):
         rows = [
@@ -95,7 +103,10 @@ class FuncTestCase(unittest.TestCase):
 
         self.assertCountEqual(
             documents,
-            [Document('q1', 'algebra'), Document('q2', 'algebra')],
+            [
+                BenchmarkQuestion('mmlu', 'algebra', 'q1', 'algebra'),
+                BenchmarkQuestion('mmlu', 'algebra', 'q2', 'algebra'),
+            ],
         )
 
     def test_skips_output_and_documents_when_the_reader_fails(self):
