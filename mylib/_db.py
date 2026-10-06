@@ -114,7 +114,15 @@ class DatabaseClient(LeaderboardDatabase):
             self.apply_pragma(dbapi_connection)
 
         Base.metadata.create_all(self.engine)
-        self.session = SqlAlchemySession(self.engine)
+
+        # expire_on_commit=False: BenchmarkQuestion/ModelMetadata are
+        # meant to work as plain value objects everywhere, including
+        # after this session closes - without this, commit() (e.g.
+        # the implicit one on __exit__) expires every loaded
+        # attribute, and touching them post-close raises
+        # DetachedInstanceError instead of just returning the value
+        # that was already fetched.
+        self.session = SqlAlchemySession(self.engine, expire_on_commit=False)
 
         return self
 
