@@ -1,4 +1,5 @@
 import sqlite3
+import functools as ft
 from pathlib import Path
 from dataclasses import asdict
 from collections.abc import Iterable, Iterator
@@ -134,7 +135,8 @@ class DatabaseClient(LeaderboardDatabase):
     def get(self, *args, **kwargs) -> Iterator:
         raise NotImplementedError()
 
-    def put(self, values: Iterable) -> None:
+    @ft.singledispatchmethod
+    def put(self, values: Iterable[Base]) -> None:
         self.values.clear()
         self.values.extend(values)
 
@@ -148,6 +150,10 @@ class DatabaseClient(LeaderboardDatabase):
 
             self.session.execute(stmt)
             self.session.commit()
+
+    @put.register
+    def _(self, values: Base) -> None:
+        return self.put([values])
 
 class QuestionDatabase(DatabaseClient):
     def __init__(self, db: Path):
