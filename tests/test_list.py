@@ -4,7 +4,7 @@ from types import SimpleNamespace
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from mylib import Backoff, ModelMetadata
+from mylib import Backoff, Dataset, ModelMetadata
 
 _path = Path(__file__).resolve().parent.parent / 'src' / 'data' / 'list_.py'
 _spec = importlib.util.spec_from_file_location('list_', _path)
@@ -45,6 +45,18 @@ class DatasetFileSystemTestCase(unittest.TestCase):
         mock_time.sleep.assert_called_once()
         (delay,) = mock_time.sleep.call_args.args
         self.assertAlmostEqual(delay, 5, delta=0.5)
+
+class DatasetIteratorTestCase(unittest.TestCase):
+    def test_handles_a_contents_row_with_no_author(self):
+        # Some leaderboard entries (e.g. "gpt2") have no author at
+        # all in the contents dataset's fullname field.
+        rows = [{'fullname': 'gpt2'}]
+
+        with patch.object(list_, 'load_dataset', return_value=rows):
+            datasets = list_.DatasetIterator('open-llm-leaderboard')
+
+        (listing,) = list(datasets)
+        self.assertEqual(listing.dataset, Dataset('_', 'gpt2'))
 
 class FlaggedHandlerTestCase(unittest.TestCase):
     _rows = [

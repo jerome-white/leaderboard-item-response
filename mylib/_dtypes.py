@@ -25,6 +25,18 @@ class Dataset:
         return cls(*names)
 
     @classmethod
+    def from_contents(cls, fullname):
+        # Unlike from_fullname, a missing separator here isn't
+        # malformed data - the leaderboard's "contents" dataset
+        # genuinely lists some models (e.g. "gpt2") with no author
+        # at all. Falls back to the same placeholder namespace
+        # from_flattened/from_leaderboard already use for that case,
+        # so a contents row and its "-details" dataset id resolve to
+        # the same key.
+        names = fullname.split(cls._sep, maxsplit=1)
+        return cls(*names) if len(names) == 2 else cls(cls._unknown, fullname)
+
+    @classmethod
     def from_flattened(cls, name):
         sep = cls._unknown * 2
         if sep not in name:

@@ -242,6 +242,16 @@ class DatasetTestCase(unittest.TestCase):
         with self.assertRaises(ValueError):
             Dataset.from_fullname('no-separator-here')
 
+    def test_from_contents_splits_namespace_and_name(self):
+        self.assertEqual(Dataset.from_contents('0-hero/Matter-0.2-7B-DPO'),
+                          Dataset('0-hero', 'Matter-0.2-7B-DPO'))
+
+    def test_from_contents_without_an_author_uses_placeholder_namespace(self):
+        # Some leaderboard entries (e.g. "gpt2") have no author at
+        # all - unlike from_fullname, this isn't malformed data, it's
+        # just a model with no namespace.
+        self.assertEqual(Dataset.from_contents('gpt2'), Dataset('_', 'gpt2'))
+
     def test_from_flattened_unflattens_first_double_underscore_only(self):
         self.assertEqual(Dataset.from_flattened('BoltMonkey__Neural__Daredevil-7B'),
                           Dataset('BoltMonkey', 'Neural__Daredevil-7B'))
