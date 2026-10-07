@@ -52,7 +52,7 @@ class DatasetIterator:
 
     def __iter__(self):
         for row in self.datasets:
-            dataset = Dataset.from_contents(row['fullname'])
+            dataset = Dataset.from_fullname(row['fullname'])
             yield DatasetListing(row, dataset)
 
 class ModelHandler:
