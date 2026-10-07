@@ -20,9 +20,12 @@ class Dataset:
     @classmethod
     def from_fullname(cls, fullname):
         names = fullname.split(cls._sep, maxsplit=1)
-        if len(names) != 2:
-            raise ValueError(fullname)
-        return cls(*names)
+        if len(names) == 2:
+            (namespace, fullname) = names
+        else:
+            namespace = cls._unknown
+
+        return cls(namespace, fullname)
 
     @classmethod
     def from_flattened(cls, name):
