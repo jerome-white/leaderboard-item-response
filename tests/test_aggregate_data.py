@@ -6,7 +6,13 @@ import pandas as pd
 from pathlib import Path
 from types import SimpleNamespace
 
-from mylib import Document, Experiment, QuestionBank, QuestionBankWorker, SubmissionInfo
+from mylib import (
+    BenchmarkQuestion,
+    Experiment,
+    LeaderboardDatabase,
+    QuestionDatabase,
+    SubmissionInfo,
+)
 
 _path = Path(__file__).resolve().parent.parent / 'src' / 'model' / 'aggregate-data.py'
 _spec = importlib.util.spec_from_file_location('aggregate_data', _path)
@@ -15,7 +21,10 @@ _spec.loader.exec_module(aggregate_data)
 
 class IndexedCategoryBenchmarkTestCase(unittest.TestCase):
     _info = SubmissionInfo('mmlu', 'algebra', 'org', 'model')
-    _documents = [Document('q1', 'algebra'), Document('q2', 'geometry')]
+    _documents = [
+        BenchmarkQuestion('mmlu', 'algebra', 'q1', 'algebra'),
+        BenchmarkQuestion('mmlu', 'algebra', 'q2', 'geometry'),
+    ]
 
     def test_multitask_understanding_indexes_documents_by_label(self):
         handler = aggregate_data.MultitaskUnderstanding(self._info, self._documents)
@@ -47,11 +56,14 @@ class FuncTestCase(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             tmp = Path(tmp)
             qbank_path = tmp.joinpath('questions.sqlite')
-            QuestionBank(qbank_path).initialize()
+            LeaderboardDatabase(qbank_path).initialize()
 
             info = SubmissionInfo('mmlu', 'pro', 'org', 'model-x')
-            with QuestionBankWorker(qbank_path) as db:
-                db.put(info, [Document(0, 'physics'), Document(1, 'law')])
+            with QuestionDatabase(qbank_path) as db:
+                db.put([
+                    BenchmarkQuestion('mmlu', 'pro', 0, 'physics'),
+                    BenchmarkQuestion('mmlu', 'pro', 1, 'law'),
+                ])
 
             data_root = tmp.joinpath('responses')
             path = data_root.joinpath(info.to_path('.csv.gz'))
@@ -65,7 +77,7 @@ class FuncTestCase(unittest.TestCase):
             }).to_csv(path, index=False, compression='gzip')
 
             experiment = Experiment('mmlu', 'physics', ['physics'])
-            args = SimpleNamespace(data_root=data_root, question_bank=qbank_path)
+            args = SimpleNamespace(data_root=data_root, database=qbank_path)
 
             incoming = _BoundedQueue()
             incoming.put(path)

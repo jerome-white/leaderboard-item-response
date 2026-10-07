@@ -6,9 +6,10 @@ import importlib.util
 import pandas as pd
 from pathlib import Path
 from types import SimpleNamespace
+from contextlib import contextmanager
 from unittest.mock import patch, MagicMock
 
-from mylib import Backoff, Document, QuestionBankWorker, SubmissionInfo
+from mylib import Backoff, BenchmarkQuestion, QuestionDatabase, SubmissionInfo
 
 _path = Path(__file__).resolve().parent.parent / 'src' / 'data' / 'download_.py'
 _spec = importlib.util.spec_from_file_location('download_', _path)
@@ -22,18 +23,26 @@ class _FakeHttpError(Exception):
 
 class SubmissionReaderTestCase(unittest.TestCase):
     def test_store_extracts_the_label_for_a_known_benchmark(self):
-        reader = download_.SubmissionReader(lambda path: iter([]), benchmark='mmlu')
+        info = SubmissionInfo('mmlu', 'algebra', 'org', 'model')
+        reader = download_.SubmissionReader(lambda path: iter([]), info)
 
         reader.store('q1', {'doc': {'category': 'algebra'}})
 
-        self.assertEqual(reader.documents, [Document('q1', 'algebra')])
+        self.assertEqual(
+            reader.documents,
+            [BenchmarkQuestion('mmlu', 'algebra', 'q1', 'algebra')],
+        )
 
     def test_store_leaves_the_label_unset_for_an_unmapped_benchmark(self):
-        reader = download_.SubmissionReader(lambda path: iter([]), benchmark='bbh')
+        info = SubmissionInfo('bbh', 'boolean_expressions', 'org', 'model')
+        reader = download_.SubmissionReader(lambda path: iter([]), info)
 
         reader.store('q1', {'doc': {'category': 'algebra'}})
 
-        self.assertEqual(reader.documents, [Document('q1', None)])
+        self.assertEqual(
+            reader.documents,
+            [BenchmarkQuestion('bbh', 'boolean_expressions', 'q1', None)],
+        )
 
 class _BoundedQueue(queue.Queue):
     """A queue.Queue that raises Stop once drained, so func()'s
@@ -60,7 +69,7 @@ class FuncTestCase(unittest.TestCase):
     def make_args(self, tmp):
         return SimpleNamespace(
             output=Path(tmp),
-            question_bank=Path(tmp, 'questions.sqlite'),
+            database=Path(tmp, 'questions.sqlite'),
             backoff=0.01,
             retries=1,
         )
@@ -71,9 +80,14 @@ class FuncTestCase(unittest.TestCase):
         with self.assertRaises(_BoundedQueue.Stop):
             download_.func(tasks, args)
 
+    @contextmanager
     def documents(self, args):
-        with QuestionBankWorker(args.question_bank) as db:
-            return list(db.get(self._info))
+        # A context manager, not a plain return: get() results are
+        # live, session-attached entities that must be consumed
+        # before this with-block closes, or touching them raises
+        # DetachedInstanceError.
+        with QuestionDatabase(args.database) as db:
+            yield list(db.get(self._info))
 
     def test_writes_results_and_documents_on_success(self):
         rows = [
@@ -91,12 +105,15 @@ class FuncTestCase(unittest.TestCase):
 
             out = Path(tmp, 'mmlu', 'algebra', 'org', 'x.csv.gz')
             self.assertTrue(out.exists())
-            documents = self.documents(args)
 
-        self.assertCountEqual(
-            documents,
-            [Document('q1', 'algebra'), Document('q2', 'algebra')],
-        )
+            with self.documents(args) as documents:
+                self.assertCountEqual(
+                    documents,
+                    [
+                        BenchmarkQuestion('mmlu', 'algebra', 'q1', 'algebra'),
+                        BenchmarkQuestion('mmlu', 'algebra', 'q2', 'algebra'),
+                    ],
+                )
 
     def test_skips_output_and_documents_when_the_reader_fails(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -107,9 +124,9 @@ class FuncTestCase(unittest.TestCase):
                 self.run_func(args)
 
             self.assertEqual(list(Path(tmp).rglob('*.csv.gz')), [])
-            documents = self.documents(args)
 
-        self.assertEqual(documents, [])
+            with self.documents(args) as documents:
+                self.assertEqual(documents, [])
 
 class FakeFile:
     def __init__(self, lines):

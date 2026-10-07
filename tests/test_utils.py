@@ -6,18 +6,19 @@ from pathlib import Path
 from types import SimpleNamespace
 
 from mylib import (
+    BenchmarkQuestion,
     Dataset,
     DatasetPathHandler,
-    Document,
-    QuestionBank,
-    QuestionBankWorker,
+    ModelDatabase,
+    ModelMetadata,
+    QuestionDatabase,
     SubmissionInfo,
     retry_after,
 )
 
 def _enter_question_bank(path, barrier):
     barrier.wait()
-    with QuestionBankWorker(path):
+    with QuestionDatabase(path):
         pass
 
 class _FakeHttpError(Exception):
@@ -71,9 +72,9 @@ class DatasetPathHandlerTestCase(unittest.TestCase):
         with self.assertRaises(AttributeError):
             handler.relative_to('datasets/open-llm-leaderboard/contents')
 
-class QuestionBankTestCase(unittest.TestCase):
+class QuestionDatabaseTestCase(unittest.TestCase):
     def make(self, tmp):
-        return QuestionBankWorker(Path(tmp, 'questions.sqlite'))
+        return QuestionDatabase(Path(tmp, 'questions.sqlite'))
 
     def test_schema_keys_rows_by_doc_id_not_doc_hash(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -86,7 +87,7 @@ class QuestionBankTestCase(unittest.TestCase):
                 columns = {
                     row[1]
                     for row in connection.execute(
-                        "PRAGMA table_info(benchmark_questions)"
+                        "PRAGMA table_info(questions)"
                     )
                 }
             finally:
@@ -97,13 +98,22 @@ class QuestionBankTestCase(unittest.TestCase):
 
     def test_put_then_get_round_trips_documents(self):
         info = SubmissionInfo('mmlu', 'u.s._history', 'org', 'model')
-        documents = [Document('q1', 'history'), Document('q2', 'history')]
+        documents = [
+            BenchmarkQuestion('mmlu', 'u.s._history', 'q1', 'history'),
+            BenchmarkQuestion('mmlu', 'u.s._history', 'q2', 'history'),
+        ]
 
         with tempfile.TemporaryDirectory() as tmp, self.make(tmp) as db:
-            db.put(info, documents)
+            db.put(documents)
             result = list(db.get(info))
 
-        self.assertEqual(result, documents)
+            # Compared while the session is still open. get() returns
+            # live, session-attached entities - the session's own
+            # commit on __exit__ (and any other commit) expires their
+            # attributes, and touching them afterward raises
+            # DetachedInstanceError. Entities must be consumed before
+            # their originating `with` block closes.
+            self.assertEqual(result, documents)
 
     def test_put_then_get_round_trips_a_numeric_doc_id_as_an_int(self):
         # doc_id is the sample's positional index in lm-evaluation-
@@ -111,60 +121,61 @@ class QuestionBankTestCase(unittest.TestCase):
         # label. A TEXT column would silently coerce it to a string
         # on the way in.
         info = SubmissionInfo('mmlu', 'physics', 'org', 'model')
+        document = BenchmarkQuestion('mmlu', 'physics', 0, 'physics')
 
         with tempfile.TemporaryDirectory() as tmp, self.make(tmp) as db:
-            db.put(info, [Document(0, 'physics')])
+            db.put([document])
             result = list(db.get(info))
 
-        self.assertEqual(result, [Document(0, 'physics')])
-        self.assertIsInstance(result[0].question, int)
+            self.assertEqual(result, [document])
+            self.assertIsInstance(result[0].doc_id, int)
 
     def test_put_ignores_a_doc_id_already_present(self):
         info = SubmissionInfo('mmlu', 'u.s._history', 'org', 'model')
+        document = BenchmarkQuestion('mmlu', 'u.s._history', 'q1', 'history')
 
         with tempfile.TemporaryDirectory() as tmp, self.make(tmp) as db:
-            db.put(info, [Document('q1', 'history')])
-            db.put(info, [Document('q1', 'history')])
+            db.put([document])
+            db.put([document])
             result = list(db.get(info))
 
-        self.assertEqual(result, [Document('q1', 'history')])
+            self.assertEqual(result, [document])
 
     def test_get_is_scoped_to_its_own_benchmark_and_subject(self):
         info_a = SubmissionInfo('mmlu', 'u.s._history', 'org', 'model')
-        info_b = SubmissionInfo('mmlu', 'anatomy', 'org', 'model')
-        info_c = SubmissionInfo('gpqa', 'u.s._history', 'org', 'model')
+        doc_a = BenchmarkQuestion('mmlu', 'u.s._history', 'q1', 'x')
+        doc_b = BenchmarkQuestion('mmlu', 'anatomy', 'q2', 'y')
+        doc_c = BenchmarkQuestion('gpqa', 'u.s._history', 'q3', 'z')
 
         with tempfile.TemporaryDirectory() as tmp, self.make(tmp) as db:
-            db.put(info_a, [Document('q1', 'x')])
-            db.put(info_b, [Document('q2', 'y')])
-            db.put(info_c, [Document('q3', 'z')])
+            db.put([doc_a, doc_b, doc_c])
             result = list(db.get(info_a))
 
-        self.assertEqual(result, [Document('q1', 'x')])
+            self.assertEqual(result, [doc_a])
 
     def test_documents_persist_across_separate_connections(self):
         info = SubmissionInfo('mmlu', 'u.s._history', 'org', 'model')
+        document = BenchmarkQuestion('mmlu', 'u.s._history', 'q1', 'history')
 
         with tempfile.TemporaryDirectory() as tmp:
             with self.make(tmp) as db:
-                db.put(info, [Document('q1', 'history')])
+                db.put([document])
 
             with self.make(tmp) as db:
                 result = list(db.get(info))
-
-        self.assertEqual(result, [Document('q1', 'history')])
+                self.assertEqual(result, [document])
 
     def test_worker_raises_when_not_initialized(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp, 'subdir', 'questions.sqlite')
             with self.assertRaises(FileNotFoundError):
-                with QuestionBankWorker(path):
+                with QuestionDatabase(path):
                     pass
 
     def test_initialize_creates_the_schema_on_its_own(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp, 'questions.sqlite')
-            QuestionBank(path).initialize()
+            QuestionDatabase(path).initialize()
 
             connection = sqlite3.connect(path)
             try:
@@ -174,14 +185,15 @@ class QuestionBankTestCase(unittest.TestCase):
             finally:
                 connection.close()
 
-        self.assertIn(('benchmark_questions',), tables)
+        self.assertIn(('questions',), tables)
+        self.assertIn(('models',), tables)
 
     def test_workers_initialized_up_front_do_not_race_to_create_the_schema(self):
         ctx = multiprocessing.get_context('fork')
 
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp, 'questions.sqlite')
-            QuestionBank(path).initialize()
+            QuestionDatabase(path).initialize()
 
             barrier = ctx.Barrier(8)
             processes = [
@@ -194,6 +206,32 @@ class QuestionBankTestCase(unittest.TestCase):
                 p.join()
 
         self.assertTrue(all(p.exitcode == 0 for p in processes))
+
+class ModelDatabaseTestCase(unittest.TestCase):
+    def make(self, tmp):
+        return ModelDatabase(Path(tmp, 'questions.sqlite'))
+
+    def test_put_then_get_round_trips_models(self):
+        models = [
+            ModelMetadata('org', 'model-a', 'chat', 'bfloat16', 7.0, False),
+            ModelMetadata('org', 'model-b', 'merge', 'float16', 13.0, True),
+        ]
+
+        with tempfile.TemporaryDirectory() as tmp, self.make(tmp) as db:
+            db.put(models)
+            result = list(db.get())
+
+            self.assertCountEqual(result, models)
+
+    def test_put_ignores_a_model_already_present(self):
+        model = ModelMetadata('org', 'model-a', 'chat', 'bfloat16', 7.0, False)
+
+        with tempfile.TemporaryDirectory() as tmp, self.make(tmp) as db:
+            db.put([model])
+            db.put([model])
+            result = list(db.get())
+
+            self.assertEqual(result, [model])
 
 class DatasetTestCase(unittest.TestCase):
     def test_from_fullname_splits_namespace_and_name(self):

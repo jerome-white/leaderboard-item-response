@@ -1,6 +1,9 @@
 from ._db import (
-    QuestionBank,
-    QuestionBankWorker,
+    BenchmarkQuestion,
+    LeaderboardDatabase,
+    ModelDatabase,
+    ModelMetadata,
+    QuestionDatabase,
 )
 
 from ._utils import (
@@ -10,7 +13,6 @@ from ._utils import (
 )
 from ._dtypes import (
     Dataset,
-    Document,
     Experiment,
     SubmissionInfo,
 )

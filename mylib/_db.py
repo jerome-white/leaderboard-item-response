@@ -1,33 +1,59 @@
 import sqlite3
+import functools as ft
 from pathlib import Path
-from types import TracebackType
+from dataclasses import asdict
 from collections.abc import Iterable, Iterator
 
 from sqlalchemy import (
+    Boolean,
     Column,
     Engine,
+    Float,
     Integer,
     Text,
     create_engine,
     event,
     select,
 )
-from sqlalchemy.orm import Session as SqlAlchemySession
-from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import (
+    DeclarativeBase,
+    Mapped,
+    MappedAsDataclass,
+    Session as SqlAlchemySession,
+    mapped_column,
+)
 from sqlalchemy.dialects.sqlite import insert
 
-from ._dtypes import Document, SubmissionInfo
+from ._dtypes import SubmissionInfo
 
-Base = declarative_base()
+#
+#
+#
+class Base(MappedAsDataclass, DeclarativeBase):
+    pass
+
 class BenchmarkQuestion(Base):
-    __tablename__ = 'benchmark_questions'
+    __tablename__ = 'questions'
 
-    benchmark = Column(Text, primary_key=True, nullable=False)
-    subject   = Column(Text, primary_key=True, nullable=False)
-    doc_id    = Column(Integer, primary_key=True, nullable=False)
-    label     = Column(Text)
+    benchmark: Mapped[str] = mapped_column(Text, primary_key=True)
+    subject:   Mapped[str] = mapped_column(Text, primary_key=True)
+    doc_id:    Mapped[int] = mapped_column(Integer, primary_key=True)
+    label:     Mapped[str | None] = mapped_column(Text, default=None)
 
-class QuestionBank:
+class ModelMetadata(Base):
+    __tablename__ = 'models'
+
+    author:    Mapped[str] = mapped_column(Text, primary_key=True)
+    model:     Mapped[str] = mapped_column(Text, primary_key=True)
+    mtype:     Mapped[str | None] = mapped_column(Text, default=None)
+    precision: Mapped[str | None] = mapped_column(Text, default=None)
+    params:    Mapped[float | None] = mapped_column(Float, default=None)
+    merged:    Mapped[bool | None] = mapped_column(Boolean, default=None)
+
+#
+#
+#
+class LeaderboardDatabase:
     # busy_timeout must be set first: it's what makes a concurrent,
     # lock-contending journal_mode switch wait and retry instead of
     # raising "database is locked" immediately.
@@ -67,12 +93,17 @@ class QuestionBank:
         finally:
             engine.dispose()
 
-class QuestionBankWorker(QuestionBank):
-    def __init__(self, db: Path):
+#
+#
+#
+class DatabaseClient(LeaderboardDatabase):
+    def __init__(self, db: Path, model: Base):
         super().__init__(db)
-        self.engine: Engine | None = None
-        self.session: SqlAlchemySession | None = None
-        self.documents: list[dict[str, str | None]] = []
+
+        self.model = model
+        self.engine = None
+        self.session = None
+        self.values = []
 
     def __enter__(self):
         if not self.db.parent.is_dir():
@@ -101,37 +132,46 @@ class QuestionBankWorker(QuestionBank):
         if self.engine:
             self.engine.dispose()
 
-    def get(self, info: SubmissionInfo) -> Iterator[Document]:
-        stmt = (
-            select(
-                BenchmarkQuestion.doc_id,
-                BenchmarkQuestion.label,
-            )
-            .where(
-                BenchmarkQuestion.benchmark == info.benchmark,
-                BenchmarkQuestion.subject == info.subject
-            )
-        )
+    def get(self, *args, **kwargs) -> Iterator:
+        raise NotImplementedError()
 
-        for row in self.session.execute(stmt):
-            yield Document(row.doc_id, row.label)
+    @ft.singledispatchmethod
+    def put(self, values: Iterable[Base]) -> None:
+        self.values.clear()
+        self.values.extend(values)
 
-    def put(self, info: SubmissionInfo, documents: Iterable[Document]) -> None:
-        self.documents.clear()
-        for doc in documents:
-            self.documents.append({
-                'benchmark': info.benchmark,
-                'subject': info.subject,
-                'doc_id': doc.question,
-                'label': doc.label,
-            })
-
-        if self.documents:
+        if self.values:
+            items = list(map(asdict, self.values))
             stmt = (
-                insert(BenchmarkQuestion)
-                .values(self.documents)
+                insert(self.model)
+                .values(items)
                 .on_conflict_do_nothing()
             )
 
             self.session.execute(stmt)
             self.session.commit()
+
+    @put.register
+    def _(self, values: Base) -> None:
+        return self.put([values])
+
+class QuestionDatabase(DatabaseClient):
+    def __init__(self, db: Path):
+        super().__init__(db, BenchmarkQuestion)
+
+    def get(self, info: SubmissionInfo) -> Iterator[BenchmarkQuestion]:
+        stmt = select(self.model).where(
+            self.model.benchmark == info.benchmark,
+            self.model.subject == info.subject,
+        )
+
+        yield from self.session.execute(stmt).scalars()
+
+class ModelDatabase(DatabaseClient):
+    def __init__(self, db: Path):
+        super().__init__(db, ModelMetadata)
+
+    def get(self) -> Iterator[ModelMetadata]:
+        stmt = select(self.model)
+
+        yield from self.session.execute(stmt).scalars()
