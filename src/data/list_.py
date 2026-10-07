@@ -169,13 +169,12 @@ if __name__ == '__main__':
     arguments.add_argument('--author', default='open-llm-leaderboard')
     arguments.add_argument('--backoff', type=float, default=15)
     arguments.add_argument('--exclude-flagged', action='store_true')
-    arguments.add_argument('--database', type=Path)
+    arguments.add_argument('--database', type=Path, required=True)
     arguments.add_argument('--workers', type=int)
     args = arguments.parse_args()
 
-    if args.database is not None:
-        with ModelDatabase(args.database) as db:
-            db.put(model_metadata(args.author))
+    with ModelDatabase(args.database) as db:
+        db.put(model_metadata(args.author))
 
     fieldnames = [ x.name for x in fields(Result) ]
     writer = csv.DictWriter(sys.stdout, fieldnames=fieldnames)
