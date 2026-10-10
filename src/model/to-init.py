@@ -7,7 +7,6 @@ import functools as ft
 from pathlib import Path
 from argparse import ArgumentParser
 
-import scipy.stats as stats
 import scipy.special as sp
 import numpy as np
 import pandas as pd
@@ -21,6 +20,21 @@ class MyEncoder(json.JSONEncoder):
     def _(self, o: np.ndarray):
         return o.tolist()
 
+class ItemExtractor:
+    def __init__(self, df: pd.DataFrame, epsilon: float):
+        self.df = df
+        self.lower = epsilon
+        self.upper = 1 - self.lower
+
+    def __call__(self, column: str) -> np.ndarray:
+        return (self
+                .df
+                .groupby(column)['score']
+                .mean()
+                .sort_index()
+                .clip(self.lower, self.upper)
+                .to_numpy())
+
 if __name__ == '__main__':
     arguments = ArgumentParser()
     arguments.add_argument('--data-file', type=Path)
@@ -29,18 +43,23 @@ if __name__ == '__main__':
 
     df = pd.read_csv(args.data_file, memory_map=True)
 
-    extract = lambda x: df.groupby(x)['score'].mean().sort_index()
+    extract = ItemExtractor(df, args.epsilon)
     (item, person) = map(extract, ('document_id', 'author_model_id'))
-    item = item.clip(args.epsilon, 1 - args.epsilon)
 
     alpha = np.ones(len(item))
     beta = sp.logit(1 - item)
-    theta = stats.zscore(person, ddof=1)
+    theta = sp.logit(person)
+
+    # Stan arrays are 1-indexed, so person 1/2 here are Stan's
+    # theta[1]/theta[2]. model.stan hardcodes those two as constants
+    # (0 and 1), not sampled parameters - theta_free only covers
+    # person 3 onward, so that's all we provide init values for here.
+    theta = theta[2:]
 
     data = {
         'alpha': alpha,
         'beta': beta,
-        'theta_free': theta[2:],
+        'theta_free': theta,
     }
 
     print(json.dumps(data, cls=MyEncoder))
