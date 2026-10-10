@@ -1,42 +1,46 @@
-"""Computes one shared, data-informed starting point for all chains
-(#60), instead of cmdstan's default independent random draw per
-chain. alpha is left at its prior mean (1) - the rotational
-ambiguity this targets is fundamentally about theta/beta's joint
-configuration, not alpha's scale. beta/theta are both simple,
-closed-form functions of per-item/per-person accuracy; no fitting
-involved.
-"""
+#
+# Compute a shared data-informed starting point for all chains.
+#
 
 import json
+import functools as ft
 from pathlib import Path
 from argparse import ArgumentParser
 
+import scipy.stats as stats
+import scipy.special as sp
 import numpy as np
 import pandas as pd
 
-def init_values(df):
-    eps = 1e-3
+class MyEncoder(json.JSONEncoder):
+    @ft.singledispatchmethod
+    def default(self, o):
+        return super().default(o)
 
-    item = df.groupby('document_id')['score'].mean().sort_index()
-    item = item.clip(eps, 1 - eps)
-    beta = np.log((1 - item) / item)  # logit(1 - accuracy) == -logit(accuracy)
-
-    person = df.groupby('author_model_id')['score'].mean().sort_index()
-    theta = (person - person.mean()) / person.std()
-
-    return {
-        'alpha': [1.0] * len(item),
-        'beta': beta.to_list(),
-        # Persons 1-2 are fixed anchors (theta[1]=0, theta[2]=1 in
-        # model.stan), not part of theta_free.
-        'theta_free': theta.iloc[2:].to_list(),
-    }
+    @default.register
+    def _(self, o: np.ndarray):
+        return o.tolist()
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
     arguments.add_argument('--data-file', type=Path)
+    arguments.add_argument('--epsilon', type=float, default=1e-3)
     args = arguments.parse_args()
 
     df = pd.read_csv(args.data_file, memory_map=True)
 
-    print(json.dumps(init_values(df)))
+    extract = lambda x: df.groupby(x)['score'].mean().sort_index()
+    (item, person) = map(extract, ('document_id', 'author_model_id'))
+    item = item.clip(args.epsilon, 1 - args.epsilon)
+
+    alpha = np.ones(len(item))
+    beta = sp.logit(1 - item)
+    theta = stats.zscore(person, ddof=1)
+
+    data = {
+        'alpha': alpha,
+        'beta': beta,
+        'theta_free': theta[2:],
+    }
+
+    print(json.dumps(data, cls=MyEncoder))
