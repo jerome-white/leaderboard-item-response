@@ -7,8 +7,8 @@ import functools as ft
 from pathlib import Path
 from argparse import ArgumentParser
 
-import scipy.special as sp
 import numpy as np
+import scipy.special as sp
 import pandas as pd
 
 class MyEncoder(json.JSONEncoder):
