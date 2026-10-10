@@ -3,10 +3,10 @@ import importlib.util
 import pandas as pd
 from pathlib import Path
 
-_path = Path(__file__).resolve().parent.parent / 'src' / 'model' / 'init-values.py'
-_spec = importlib.util.spec_from_file_location('init_values', _path)
-init_values_module = importlib.util.module_from_spec(_spec)
-_spec.loader.exec_module(init_values_module)
+_path = Path(__file__).resolve().parent.parent / 'src' / 'model' / 'to-init.py'
+_spec = importlib.util.spec_from_file_location('to_init', _path)
+to_init = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(to_init)
 
 class InitValuesTestCase(unittest.TestCase):
     def test_easy_items_get_a_low_beta_and_hard_items_a_high_one(self):
@@ -15,7 +15,7 @@ class InitValuesTestCase(unittest.TestCase):
             'author_model_id':   [1, 2, 3, 4, 1, 2, 3, 4],
             'score':             [1, 1, 1, 0, 0, 0, 0, 1],
         })
-        values = init_values_module.init_values(df)
+        values = to_init.init_values(df)
 
         (easy, hard) = values['beta']
         self.assertLess(easy, hard)
@@ -26,7 +26,7 @@ class InitValuesTestCase(unittest.TestCase):
             'author_model_id':   [1, 2, 1, 2],
             'score':             [1, 0, 0, 1],
         })
-        values = init_values_module.init_values(df)
+        values = to_init.init_values(df)
 
         self.assertEqual(values['alpha'], [1.0, 1.0])
 
@@ -36,7 +36,7 @@ class InitValuesTestCase(unittest.TestCase):
             'author_model_id':   [1, 2, 3, 4],
             'score':             [1, 1, 0, 0],
         })
-        values = init_values_module.init_values(df)
+        values = to_init.init_values(df)
 
         self.assertEqual(len(values['theta_free']), 2)
 
