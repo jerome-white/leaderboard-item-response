@@ -17,8 +17,8 @@ source $ROOT/.venv/bin/activate
 while getopts 's:o:t:h' option; do
     case $option in
         s) _step=$OPTARG ;;
-	o) _output=$OPTARG ;;
-	t) _hf_target=$OPTARG ;;
+        o) _output=$OPTARG ;;
+        t) _hf_target=$OPTARG ;;
         h)
             cat <<EOF
 Usage: $0
@@ -115,8 +115,8 @@ EOF
                 file=$output/chain.csv \
                 num_threads=$STAN_WORKERS \
                 && $CMDSTAN/bin/stansummary \
-		       --csv_filename=$summary \
-		       $output/*.csv
+                       --csv_filename=$summary \
+                       $output/*.csv
         done
         ;;
     4) # Hugging Face upload
