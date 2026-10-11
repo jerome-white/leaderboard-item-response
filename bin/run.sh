@@ -80,7 +80,7 @@ case $_step in
                        --experiment $REPLY > $agg
 
                 python $src/build-ids.py < $agg > $tmp
-                for j in stan variables; do
+                for j in stan variables init; do
                     cat <<EOF
 python $src/to-${j}.py --data-file $tmp > $out/$j.json
 EOF
@@ -110,6 +110,7 @@ EOF
                 num_chains=$STAN_WORKERS \
                 data \
                 file=$d/stan.json \
+                init=$d/init.json \
                 output \
                 file=$output/chain.csv \
                 num_threads=$STAN_WORKERS \

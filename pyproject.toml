@@ -9,5 +9,6 @@ dependencies = [
     "numpy",
     "pandas",
     "requests",
+    "scipy",
     "sqlalchemy>=2.0.0",
 ]
