@@ -4,7 +4,6 @@ ROOT=`git rev-parse --show-toplevel`
 
 export PYTHONPATH=$ROOT
 export HF_DATASETS_DISABLE_PROGRESS_BARS=1
-# export NUMEXPR_MAX_THREADS=`nproc`
 
 source $HOME/.keys/hf
 source $ROOT/.venv/bin/activate
