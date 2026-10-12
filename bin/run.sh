@@ -19,9 +19,7 @@ while getopts 's:o:t:h' option; do
             cat <<EOF
 Usage: $0
  -s step
-    1: Hugging Face download
-    2: Stan preparation
-    3: Hugging Face upload
+    1: Hugging Face upload
 EOF
             exit 0
             ;;
@@ -47,45 +45,7 @@ hf auth login --token $HF_BEARER_TOKEN &> $err || {
 }
 
 case $_step in
-    1) # Hugging Face download
-        src=$_src/data
-        python $src/initialize_.py --database $_database
-        python $src/list_.py --exclude-flagged \
-            | python $src/gather_.py \
-            | python $src/reduce_.py --corpus $_responses \
-            | python $src/download_.py \
-                     --output $_responses \
-                     --database $_database
-        ;;
-    2) # Stan preparation
-        src=$_src/model
-        tmp=`mktemp --tmpdir=$scratch`
-        script=aggregate-data
-
-        for i in $_src/experiments/*.py; do
-            python $i --output $_results \
-                | while read; do
-                echo "[ `date` ] $REPLY" 1>&2
-                out=`dirname $REPLY`
-
-                agg=$out/${script}.csv
-                python $src/${script}.py \
-                       --data-root $_responses \
-                       --database $_database \
-                       --experiment $REPLY > $agg
-
-                python $src/build-ids.py < $agg > $tmp
-                for j in stan variables init; do
-                    cat <<EOF
-python $src/to-${j}.py --data-file $tmp > $out/$j.json
-EOF
-                done | parallel --will-cite --line-buffer
-
-                pigz --best --force $agg
-            done
-        done
-        ;;
-    3) # Hugging Face upload
+    1) # Hugging Face upload
         for i in $_results/*; do
             if [ -e $i/summary.csv ]; then
                 echo "[ `date` ] $i" 1>&2
