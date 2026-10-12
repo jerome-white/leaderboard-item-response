@@ -53,7 +53,7 @@ find $_results -name 'stan.json' \
     mkdir --parents $output
 
     cat <<EOF
-echo "[ START `date` ] $dname" 1>&2 \
+echo "[ START \`date\` ] $dname" 1>&2 \
     && $model \
            sample \
            num_samples=$_stan_samples \
@@ -68,6 +68,6 @@ echo "[ START `date` ] $dname" 1>&2 \
     && $CMDSTAN/bin/stansummary \
            --csv_filename=$summary \
            $output/*.csv >> $dname/log \
-    && echo "[ STOP `date` ] $dname" 1>&2
+    && echo "[ STOP \`date\` ] $dname" 1>&2
 EOF
 done | parallel --will-cite --line-buffer $workers
