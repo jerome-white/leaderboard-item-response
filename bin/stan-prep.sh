@@ -12,11 +12,14 @@ _src=$ROOT/src
 while getopts 'd:r:b:h' option; do
     case $option in
         d) _data=$OPTARG ;;
-	r) _responses=$OPTARG ;;
-	b) _database=$OPTARG ;;
+        r) _responses=$OPTARG ;;
+        b) _database=$OPTARG ;;
         h)
             cat <<EOF
 Usage: $0
+ -o data root (required) - base directory holding responses/ and metadata/
+ -r responses directory (optional, default: <data root>/responses)
+ -d database path (optional, default: <data root>/metadata/db.sqlite)
 EOF
             exit 0
             ;;
