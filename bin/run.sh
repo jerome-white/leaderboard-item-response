@@ -2,10 +2,6 @@
 
 ROOT=`git rev-parse --show-toplevel`
 HF_SAMPLES=0.5
-STAN_SAMPLES=1000
-STAN_WARMUP=500
-STAN_WORKERS=`nproc`
-CMDSTAN=$ROOT/cmdstan-2.40.0
 
 export PYTHONPATH=$ROOT
 export HF_DATASETS_DISABLE_PROGRESS_BARS=1
@@ -25,8 +21,7 @@ Usage: $0
  -s step
     1: Hugging Face download
     2: Stan preparation
-    3: Stan sampling
-    4: Hugging Face upload
+    3: Hugging Face upload
 EOF
             exit 0
             ;;
@@ -90,36 +85,7 @@ EOF
             done
         done
         ;;
-    3) # Stan sampling
-        src=$_src/model
-        find $_results -name 'stan.json' \
-            | while read; do
-            d=`dirname $REPLY`
-            echo "[ START `date` ] $d" 1>&2
-
-            output=$d/output
-            mkdir $output 2> /dev/null || continue
-            summary=$d/summary.csv
-            rm --force $summary
-
-            (cd $CMDSTAN && make --jobs=`nproc` $src/model) || exit 1
-            $src/model \
-                sample \
-                num_samples=$STAN_SAMPLES \
-                num_warmup=$STAN_WARMUP \
-                num_chains=$STAN_WORKERS \
-                data \
-                file=$d/stan.json \
-                init=$d/init.json \
-                output \
-                file=$output/chain.csv \
-                num_threads=$STAN_WORKERS \
-                && $CMDSTAN/bin/stansummary \
-                       --csv_filename=$summary \
-                       $output/*.csv
-        done
-        ;;
-    4) # Hugging Face upload
+    3) # Hugging Face upload
         for i in $_results/*; do
             if [ -e $i/summary.csv ]; then
                 echo "[ `date` ] $i" 1>&2
