@@ -3,6 +3,8 @@ name = "leaderboard-item-response"
 version = "1.0.0"
 requires-python = ">=3.13"
 dependencies = [
+    "arviz>=1.3.0",
+    "cmdstanpy>=1.3.0",
     "datasets",
     "fsspec",
     "huggingface_hub>=1.1.7",
