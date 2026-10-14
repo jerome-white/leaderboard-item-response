@@ -6,7 +6,7 @@ export PYTHONPATH=$ROOT
 export HF_DATASETS_DISABLE_PROGRESS_BARS=1
 
 source $HOME/.keys/hf
-source $ROOT/.venv/bin/activate
+eval "$(pixi shell-hook --shell bash --manifest-path $ROOT/pyproject.toml)"
 
 while getopts 'o:h' option; do
     case $option in

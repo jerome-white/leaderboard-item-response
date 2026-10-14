@@ -7,7 +7,7 @@ export HF_DATASETS_DISABLE_PROGRESS_BARS=1
 export NUMEXPR_MAX_THREADS=`nproc`
 
 source $HOME/.keys/hf
-source $ROOT/.venv/bin/activate
+eval "$(pixi shell-hook --shell bash --manifest-path $ROOT/pyproject.toml)"
 
 while getopts 'r:s:t:h' option; do
     case $option in
