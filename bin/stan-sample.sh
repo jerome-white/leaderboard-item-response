@@ -1,7 +1,7 @@
 #!/bin/bash
 
 ROOT=`git rev-parse --show-toplevel`
-CMDSTAN=$ROOT/cmdstan-2.40.0
+eval "$(pixi shell-hook --shell bash --manifest-path $ROOT/pyproject.toml)"
 
 _stan_samples=1000
 _stan_warmup=$_stan_samples

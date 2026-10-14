@@ -1,0 +1,12 @@
+[workspace]
+authors = ["Jerome White <jerome@thewex.net>"]
+channels = ["conda-forge"]
+name = "aws"
+platforms = ["linux-aarch64", "osx-arm64"]
+version = "0.1.0"
+
+[tasks]
+
+[dependencies]
+cmdstan = "2.40.0.*"
+patchelf = ">=0.19.2,<0.20"

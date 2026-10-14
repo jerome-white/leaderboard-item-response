@@ -5,7 +5,7 @@ ROOT=`git rev-parse --show-toplevel`
 export PYTHONPATH=$ROOT
 export NUMEXPR_MAX_THREADS=`nproc`
 
-source $ROOT/.venv/bin/activate
+eval "$(pixi shell-hook --shell bash --manifest-path $ROOT/pyproject.toml)"
 
 _src=$ROOT/src
 

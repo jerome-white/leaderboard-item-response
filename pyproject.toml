@@ -12,3 +12,17 @@ dependencies = [
     "scipy",
     "sqlalchemy>=2.0.0",
 ]
+
+[tool.pixi.workspace]
+channels = ["conda-forge"]
+platforms = ["osx-arm64"]
+
+[tool.pixi.tasks]
+
+[tool.pixi.dependencies]
+cmdstan = "2.40.0.*"
+numpy = ">=2.5.4,<3"
+pandas = ">=3.0.6,<4"
+scipy = ">=1.18.1,<2"
+requests = ">=2.34.2,<3"
+sqlalchemy = ">=2.0.0"
