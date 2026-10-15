@@ -43,5 +43,8 @@ if __name__ == '__main__':
                    bad=('r_hat', lambda x: x.gt(args.rhat_threshold).sum()),
                    ess_bulk_min=('ess_bulk', 'min'),
                    ess_bulk_median=('ess_bulk', 'median'))
-              .assign(bad_pct=lambda x: x['bad'].mul(100).div(x['n'])))
-    df.to_csv(sys.stdout)
+              .assign(bad_pct=lambda x: x['bad'].mul(100).div(x['n']))
+              .reset_index())
+    else:
+        df = df.reset_index(names='parameter')
+    df.to_csv(sys.stdout, index=False)
