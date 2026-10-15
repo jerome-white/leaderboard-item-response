@@ -1,4 +1,5 @@
 import sys
+import warnings
 from pathlib import Path
 from argparse import ArgumentParser
 
@@ -14,8 +15,16 @@ if __name__ == '__main__':
     posterior = cmdstanpy.from_csv(path=str(args.chains))
     idata = az.from_cmdstanpy(posterior=posterior)
 
-    df = (az
-          .summary(idata, var_names=['alpha', 'beta', 'theta'])
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            'ignore',
+            message='invalid value encountered in scalar divide',
+            category=RuntimeWarning,
+        )
+        summary = az.summary(idata, var_names=['alpha', 'beta', 'theta'])
+
+    df = (summary
+          .query('sd > 0') # drop fixed anchors
           .assign(family=lambda x: x.index.str.split('[').str[0])
           .groupby('family')
           .agg(n=('r_hat', 'size'),
