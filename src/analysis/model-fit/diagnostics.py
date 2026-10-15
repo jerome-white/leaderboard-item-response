@@ -3,7 +3,6 @@ from pathlib import Path
 from argparse import ArgumentParser
 
 import arviz as az
-import pandas as pd
 import cmdstanpy
 
 if __name__ == '__main__':
