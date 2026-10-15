@@ -1,3 +1,5 @@
+import sys
+import csv
 import collections as cl
 from pathlib import Path
 from argparse import ArgumentParser
@@ -6,6 +8,8 @@ from collections.abc import Iterator
 
 import arviz as az
 import cmdstanpy
+
+from mylib import Logger
 
 @dataclass(frozen=True)
 class Parameter:
@@ -26,11 +30,15 @@ class Parameter:
 
         return cls(name, index)
 
-def parameters(params: list, posterior) -> Iterator[Parameter]:
+def scanf(fp, posterior) -> Iterator[Parameter]:
     n_sample_dims = 2
 
-    for p in params:
-        param = Parameter.from_string(p)
+    reader = csv.DictReader(sys.stdin)
+    for row in reader:
+        parameter = row['parameter']
+        Logger.info('%s %f', parameter, float(row['ess_bulk']))
+
+        param = Parameter.from_string(parameter)
 
         dvar = posterior.data_vars.get(param.name)
         if dvar is None:
@@ -53,11 +61,6 @@ if __name__ == '__main__':
     arguments.add_argument('--chains', type=Path)
     arguments.add_argument('--kind', choices=_ptypes, default='trace')
     arguments.add_argument('--output', type=Path)
-    arguments.add_argument(
-        '--parameter',
-        action='append',
-        help='"param[index]", where index is zero-based',
-    )
     args = arguments.parse_args()
 
     posterior = cmdstanpy.from_csv(path=str(args.chains))
@@ -65,10 +68,10 @@ if __name__ == '__main__':
 
     coords = cl.defaultdict(list)
     var_names = set()
-    for p in parameters(args.parameter, idata.posterior):
-        key = f'{p}_dim_0'
-        coords[key].append(p.index)
-        var_names.add(p.name)
+    for param in scanf(sys.stdin, idata.posterior):
+        key = f'{param}_dim_0'
+        coords[key].append(param.index)
+        var_names.add(param.name)
 
     plot = _ptypes.get(args.kind)(
         idata,
