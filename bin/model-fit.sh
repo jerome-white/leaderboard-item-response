@@ -3,18 +3,21 @@
 ROOT=`git rev-parse --show-toplevel`
 
 export PYTHONPATH=$ROOT
-
 source $ROOT/.venv/bin/activate
 
 _src=$ROOT/src/analysis/model-fit
 
-while getopts 'd:r:b:h' option; do
+_top_k=3
+_benchmark=()
+while getopts 'k:b:h' option; do
     case $option in
-        b) _benchmark=$OPTARG ;;
+        b) _benchmark+=( $OPTARG );;
+        k) _top_k=$OPTARG ;;
         h)
             cat <<EOF
 Usage: $0
  -b Benchmark
+ -k Top k (default $_top_k)
 EOF
             exit 0
             ;;
@@ -25,9 +28,17 @@ EOF
     esac
 done
 
-chains="--chains $ROOT/data/opt/mmlu/computer-science/output"
+for b in ${_benchmark[@]}; do
+    chains="--chains $b/output"
+
+    output=$b/plots
+    mkdir --parents $output
+
+    cat <<EOF
 python $_src/diagnostics.py $chains \
-    | python $_src/select-worst.py --top-k 10 \
+    | python $_src/select-worst.py --top-k $_top_k \
     | python $_src/trace.py $chains \
-	     --kind trace \
-	     --output $ROOT/tmp/trace.png
+             --kind trace \
+             --output $output/trace.png
+EOF
+done | parallel --will-cite --line-buffer
