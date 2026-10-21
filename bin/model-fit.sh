@@ -7,17 +7,17 @@ source $ROOT/.venv/bin/activate
 
 _src=$ROOT/src/analysis/model-fit
 
-_top_k=3
+_worst_k=3
 _benchmark=()
 while getopts 'k:b:h' option; do
     case $option in
         b) _benchmark+=( $OPTARG );;
-        k) _top_k=$OPTARG ;;
+        k) _worst_k=$OPTARG ;;
         h)
             cat <<EOF
 Usage: $0
  -b Benchmark
- -k Top k (default $_top_k)
+ -k Worst k (default $_worst_k)
 EOF
             exit 0
             ;;
@@ -36,7 +36,7 @@ for b in ${_benchmark[@]}; do
 
     cat <<EOF
 python $_src/diagnostics.py $chains \
-    | python $_src/select-data.py --top-k $_top_k \
+    | python $_src/select-data.py --worst-k $_worst_k --parameter theta \
     | MATPLOTLIBRC=$_src/matplotlibrc python $_src/trace.py $chains \
              --kind trace \
              --output $output/trace.png

@@ -8,7 +8,7 @@ import pandas as pd
 def select(parameters: tuple):
     def do(x: pd.DataFrame):
         mask = df['parameter'].str.startswith(parameters, na=False)
-	return df[mask]
+        return df[mask]
 
     return do
 
@@ -28,5 +28,5 @@ if __name__ == '__main__':
     if args.worst_k is not None:
         df = (df
               .sort_values(by=['ess_bulk', 'r_hat'], ascending=[True, False])
-              .head(args.top_k))
+              .head(args.worst_k))
     df.to_csv(sys.stdout, index=False)
