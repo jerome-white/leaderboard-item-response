@@ -4,6 +4,7 @@ import collections as cl
 from pathlib import Path
 from argparse import ArgumentParser
 from dataclasses import dataclass
+from collections.abc import Iterator
 
 import arviz as az
 import cmdstanpy
