@@ -4,18 +4,34 @@ import collections as cl
 from pathlib import Path
 from argparse import ArgumentParser
 from dataclasses import dataclass
-from collections.abc import Iterator
 
 import arviz as az
 import cmdstanpy
 import matplotlib
 from arviz_base.labels import BaseLabeller
+from arviz_plots import PlotCollection
 
 from mylib import Logger
 
 class FlatLabeller(BaseLabeller):
     def make_label_vert(self, var_name, sel, isel):
         return self.make_label_flat(var_name, sel, isel)
+
+def declutter_axes(plot: PlotCollection) -> None:
+    (v_plot, v_title) = map(plot.viz.get, ('plot', 'title'))
+    for var in v_title.data_vars:
+        (titles, axes) = (x[var] for x in (v_title, v_plot))
+        for (title, ax) in zip(titles.values.flat, axes.values.flat):
+            ax.set_ylabel(title.get_text())
+            title.set_visible(False)
+
+    (v_index, v_label) = map(plot.viz.get, ('row_index', 'xlabel'))
+    max_row = max(int(v_index[x].max()) for x in v_index.data_vars)
+    for var in v_label.data_vars:
+        (labels, rows) = (x[var] for x in (v_label, v_index))
+        for (label, row) in zip(labels.values.flat, rows.values.flat):
+            if row != max_row:
+                label.set_visible(False)
 
 @dataclass(frozen=True)
 class Parameter:
@@ -86,4 +102,5 @@ if __name__ == '__main__':
         labeller=FlatLabeller(),
         col_wrap=1,
     )
+    declutter_axes(plot)
     plot.savefig(args.output)
