@@ -1,0 +1,6 @@
+figure.figsize: 14, 8
+
+axes.grid:      True
+axes.grid.axis: both
+
+grid.alpha:     0.6

@@ -37,7 +37,7 @@ for b in ${_benchmark[@]}; do
     cat <<EOF
 python $_src/diagnostics.py $chains \
     | python $_src/select-worst.py --top-k $_top_k \
-    | python $_src/trace.py $chains \
+    | MATPLOTLIBRC=$_src/matplotlibrc python $_src/trace.py $chains \
              --kind trace \
              --output $output/trace.png
 EOF

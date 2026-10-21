@@ -8,8 +8,14 @@ from collections.abc import Iterator
 
 import arviz as az
 import cmdstanpy
+import matplotlib
+from arviz_base.labels import BaseLabeller
 
 from mylib import Logger
+
+class FlatLabeller(BaseLabeller):
+    def make_label_vert(self, var_name, sel, isel):
+        return self.make_label_flat(var_name, sel, isel)
 
 @dataclass(frozen=True)
 class Parameter:
@@ -77,5 +83,7 @@ if __name__ == '__main__':
         idata,
         var_names=list(var_names),
         coords=coords,
+        labeller=FlatLabeller(),
+        col_wrap=1,
     )
     plot.savefig(args.output)
