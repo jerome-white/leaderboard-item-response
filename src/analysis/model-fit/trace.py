@@ -103,5 +103,6 @@ if __name__ == '__main__':
         labeller=FlatLabeller(),
         col_wrap=1,
     )
+    plot.viz['figure'].item().suptitle(str(args.chains))
     declutter_axes(plot)
     plot.savefig(args.output)
