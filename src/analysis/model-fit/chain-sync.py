@@ -1,5 +1,6 @@
 import sys
 import csv
+from typing import TextIO
 from pathlib import Path
 from argparse import ArgumentParser
 from collections.abc import Iterator
@@ -8,24 +9,29 @@ import arviz as az
 import pandas as pd
 import cmdstanpy
 
-def spread(da, window: int) -> pd.Series:
-    """Per-draw dispersion across chains, smoothed over `window` draws
-    and z-scored. High values mark draws where chains have wandered
-    apart from one another; correlating this signal between two
-    parameters shows whether they wander apart *at the same time*."""
+# Per-draw dispersion across chains, smoothed over `window`
+# draws. High values mark draws where chains have wandered apart from
+# one another; correlating the *rank* of this signal between two
+# parameters shows whether they wander apart *at the same time*,
+# without assuming a linear relationship or being thrown off by a
+# handful of extreme draws.
+class ChainDispersion:
+    def __init__(self, window: int):
+        self.window = window
 
-    df = (pd
-          .DataFrame(da.values.T, columns=da.coords['chain'].values)
-          .rolling(window, min_periods=window)
-          .mean()
-          .dropna()
-          .std(axis='columns'))
+    def __call__(self, da) -> pd.Series:
+        return (pd
+                .DataFrame(da.values.T, columns=da.coords['chain'].values)
+                .rolling(self.window, min_periods=self.window)
+                .mean()
+                .dropna()
+                .std(axis='columns'))
 
-    return (df
-            .sub(df.mean())
-            .div(df.std()))
-
-def scanf(fp, idata: az.InferenceData, window: int) -> Iterator[tuple]:
+def scanf(
+        fp: TextIO,
+        idata, # : xarray.DataTree,
+        spread: ChainDispersion,
+) -> Iterator[tuple]:
     reader = csv.DictReader(fp)
     for row in reader:
         parameter = row['parameter']
@@ -39,7 +45,7 @@ def scanf(fp, idata: az.InferenceData, window: int) -> Iterator[tuple]:
             dim = dvar.dims[2]
             dvar = dvar.sel({dim: int(index[:-1])})
 
-        yield (parameter, spread(dvar, window))
+        yield (parameter, spread(dvar))
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
@@ -47,12 +53,14 @@ if __name__ == '__main__':
     arguments.add_argument('--window', type=int, default=50)
     args = arguments.parse_args()
 
+    spread = ChainDispersion(args.window)
+
     posterior = cmdstanpy.from_csv(path=str(args.chains))
     idata = az.from_cmdstanpy(posterior=posterior)
-    series = dict(scanf(sys.stdin, idata, args.window))
 
+    series = scanf(sys.stdin, idata, spread)
     df = (pd
-          .DataFrame(series)
-          .corr()
+          .DataFrame(dict(series))
+          .corr(method='spearman')
           .rename_axis(index='parameter'))
     df.to_csv(sys.stdout)
