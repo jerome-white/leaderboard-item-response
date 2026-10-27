@@ -9,10 +9,11 @@ _src=$ROOT/src/analysis/model-fit
 
 _worst_k=3
 _benchmark=()
-while getopts 'k:b:h' option; do
+while getopts 'k:b:o:h' option; do
     case $option in
         b) _benchmark+=( $OPTARG );;
         k) _worst_k=$OPTARG ;;
+        o) _output=$OPTARG ;;
         h)
             cat <<EOF
 Usage: $0
@@ -29,16 +30,22 @@ EOF
 done
 
 for b in ${_benchmark[@]}; do
-    chains="--chains $b/output"
+    bench=`basename $b`
+    for s in $b/*; do
+        chains="--chains $s/output"
 
-    output=$b/plots
-    mkdir --parents $output
+        subject=`realpath --relative-to=$b $s`
+        output=$_output/$bench/$subject
+        mkdir --parents $output
 
-    cat <<EOF
+        cat <<EOF
 python $_src/diagnostics.py $chains \
-    | python $_src/select-data.py --worst-k $_worst_k --parameter theta \
-    | MATPLOTLIBRC=$_src/matplotlibrc python $_src/trace.py $chains \
+    | python $_src/select-data.py --worst-k $_worst_k \
+    | tee >(MATPLOTLIBRC=$_src/matplotlibrc python $_src/trace.py $chains \
              --kind trace \
-             --output $output/trace.png
+             --output $output/trace.png) \
+          >(python $_src/chain-sync.py $chains > $output/chain-sync.csv) \
+          > /dev/null
 EOF
+    done
 done | parallel --will-cite --line-buffer
