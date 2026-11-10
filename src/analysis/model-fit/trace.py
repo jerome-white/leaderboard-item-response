@@ -1,10 +1,11 @@
 import sys
 import csv
+import itertools as it
 import collections as cl
 from pathlib import Path
 from argparse import ArgumentParser
 from dataclasses import dataclass
-from collections.abc import Iterator
+from collections.abc import Iterator, Callable
 
 import arviz as az
 import cmdstanpy
@@ -33,6 +34,18 @@ def declutter_axes(plot: PlotCollection) -> None:
         for (label, row) in zip(labels.values.flat, rows.values.flat):
             if row != max_row:
                 label.set_visible(False)
+
+@dataclass
+class ArvizPlot:
+    name: str
+    action: Callable
+    kwargs: dict
+
+    def __str__(self):
+        return self.name
+
+    def __call__(self, *args, **kwargs):
+        return self.action(*args, **kwargs, **self.kwargs)
 
 @dataclass(frozen=True)
 class Parameter:
@@ -74,11 +87,17 @@ def scanf(fp, posterior) -> Iterator[Parameter]:
 
         yield param
 
+def ptypes():
+    _types = (
+        ('rank', az.plot_rank, dict(col_wrap=1)),
+        ('trace', az.plot_trace, dict(col_wrap=1)),
+        ('parallel', az.plot_parallel, dict(norm_method='normal')),
+    )
+
+    yield from it.starmap(ArvizPlot, _types)
+
 if __name__ == '__main__':
-    _ptypes = {
-        'rank': az.plot_rank,
-        'trace': az.plot_trace,
-    }
+    _ptypes = { x.name: x for x in ptypes() }
 
     arguments = ArgumentParser()
     arguments.add_argument('--chains', type=Path)
@@ -96,13 +115,14 @@ if __name__ == '__main__':
         coords[key].append(param.index)
         var_names.add(param.name)
 
-    plot = _ptypes.get(args.kind)(
+    plotter = _ptypes[args.kind]
+    plot = plotter(
         idata,
         var_names=list(var_names),
         coords=coords,
         labeller=FlatLabeller(),
-        col_wrap=1,
     )
     plot.viz['figure'].item().suptitle(str(args.chains))
-    declutter_axes(plot)
+    if str(plotter) != 'parallel':
+        declutter_axes(plot)
     plot.savefig(args.output)
