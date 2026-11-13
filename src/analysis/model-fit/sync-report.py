@@ -1,5 +1,4 @@
 import sys
-import json
 from pathlib import Path
 from argparse import ArgumentParser
 from multiprocessing import Pool
@@ -9,42 +8,60 @@ import pandas as pd
 
 from mylib import Logger
 
-class DataReader:
-    def __init__(self, path: Path):
-        self.path = path
+def read_csv(path: Path, index_col: str) -> pd.DataFrame:
+    return pd.read_csv(path, index_col=index_col) if path.exists() else None
 
-    def __call__(self, fname: str):
-        path = self.path.joinpath(fname).with_suffix('.csv')
-        return pd.read_csv(path, index_col='parameter')
-
+# Only `diagnostics.csv` is required - every analysis run produces it.
+# `chain-sync.csv` and `item-info.csv` are each optional, and each
+# contributes its own columns only when present; this function never
+# assumes one or the other was (or wasn't) computed over a worst-k
+# subset, or computed at all - that's entirely up to whichever stages
+# ran upstream.
 def func(path: Path) -> dict:
-    reader = DataReader(path)
-    (diagnostics, chain) = map(reader, ('diagnostics', 'chain-sync'))
+    diagnostics = pd.read_csv(path.joinpath('diagnostics.csv'), index_col='parameter')
 
-    stan = path.joinpath('stan').with_suffix('.json')
-    spec = json.loads(stan.read_text())
-
-    values = chain.values
-    n = values.shape[0]
-    mask = ~np.eye(n, dtype=bool)
-    offdiag = values[mask]
-
-    selected = diagnostics.loc[chain.index]
-    (r_hat, ess_bulk) = (selected[x] for x in ('r_hat', 'ess_bulk'))
-    bad_pct = r_hat.gt(1.1).mean() * 100
-
-    return {
+    record = {
         'subject': path.name,
-        'items': spec['I'],
-        'respondents': spec['J'],
-        'sync_mean': offdiag.mean(),
-        'sync_min': offdiag.min(),
-        'sync_max': offdiag.max(),
-        'bad_pct': bad_pct,
+        # Always derivable from diagnostics.csv alone, regardless of
+        # what else ran: I is the beta count, J is the theta count
+        # plus the 2 fixed anchors diagnostics.py drops (sd == 0).
+        'items': diagnostics.index.str.startswith('beta[').sum(),
+        'respondents': diagnostics.index.str.startswith('theta[').sum() + 2,
+    }
+
+    chain = read_csv(path.joinpath('chain-sync.csv'), 'parameter')
+    if chain is not None:
+        values = chain.values
+        n = values.shape[0]
+        mask = ~np.eye(n, dtype=bool)
+        offdiag = values[mask]
+        record.update({
+            'sync_mean': offdiag.mean(),
+            'sync_min': offdiag.min(),
+            'sync_max': offdiag.max(),
+        })
+
+    (r_hat, ess_bulk) = (diagnostics[x] for x in ('r_hat', 'ess_bulk'))
+    record.update({
+        'bad_pct': r_hat.gt(1.1).mean() * 100,
         'ess_bulk_min': ess_bulk.min(),
         'ess_bulk_median': ess_bulk.median(),
         'rhat_max': r_hat.max(),
-    }
+    })
+
+    item_info = read_csv(path.joinpath('item-info.csv'), 'item')
+    if item_info is not None:
+        # Does an item's own floor/ceiling-ness (low rate*(1-rate),
+        # i.e. low information) predict its beta's R-hat?
+        beta = diagnostics[diagnostics.index.str.startswith('beta[')].copy()
+        beta['item'] = beta.index.str.extract(r'\[(\d+)\]')[0].astype(int)
+        beta = beta.join(item_info, on='item')
+        record.update({
+            'info_median': item_info['info'].median(),
+            'info_rhat_corr': beta['info'].corr(beta['r_hat'], method='spearman'),
+        })
+
+    return record
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
@@ -58,5 +75,5 @@ if __name__ == '__main__':
         df = (pd
               .DataFrame
               .from_records(records)
-              .sort_values('sync_mean', ascending=False))
-        df.to_csv(sys.stdout)
+              .sort_values('subject'))
+        df.to_csv(sys.stdout, index=False)
