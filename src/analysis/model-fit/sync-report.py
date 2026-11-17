@@ -75,4 +75,4 @@ if __name__ == '__main__':
             ),
         })
 
-    print(json.dumps(record, indent=3, cls=SyncEncoder))
+    print(json.dumps(record, cls=SyncEncoder))

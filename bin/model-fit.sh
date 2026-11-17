@@ -16,7 +16,9 @@
 # sync-report.py takes every input as an explicit path on the command
 # line (--diagnostics required; --chain-sync/--item-info optional,
 # whichever the analysis produced), so it never has to assume where a
-# file lives relative to another.
+# file lives relative to another. jsons-to-csv.py then combines each
+# analysis's per-subject sync.json files into one CSV per benchmark,
+# one row per subject.
 
 ROOT=`git rev-parse --show-toplevel`
 SRC=$ROOT/src/analysis/model-fit
@@ -54,8 +56,14 @@ if [ -d $_output ]; then
     exit 1
 fi
 
+scratch=`mktemp --directory`
+trap 'rm --recursive --force $scratch' EXIT
+
 for b in ${_benchmark[@]}; do
     bench=$_output/`basename $b`
+
+    wk_json=`mktemp --directory --tmpdir=$scratch`
+    fc_json=`mktemp --directory --tmpdir=$scratch`
 
     for s in $b/*; do
         chains="--chains $s/output"
@@ -74,7 +82,7 @@ for b in ${_benchmark[@]}; do
         #
         out_wk=$output/worst-k
         selected=$out_wk/selected.csv
-        sync=$out_wk/sync.json
+        sync=`mktemp --tmpdir=$wk_json`
 
         mkdir $out_wk
         python $SRC/select-data.py \
@@ -96,7 +104,7 @@ for b in ${_benchmark[@]}; do
         # worst-k selection involved.
         #
         out_fc=$output/floor-ceiling
-        sync=$out_fc/sync.json
+        sync=`mktemp --tmpdir=$fc_json`
 
         mkdir $out_fc
         python $SRC/item-info.py < $s/stan.json > $out_fc/item-info.csv
@@ -106,4 +114,15 @@ for b in ${_benchmark[@]}; do
                --item-info $out_fc/item-info.csv \
                > $sync
     done
+
+    for j in wk_json fc_json; do
+        case $j in
+            wk_json) out=worst-${_worst_k} ;;
+            fc_json) out=floor-ceiling ;;
+            *) exit 1 ;;
+        esac
+        cat<<EOF
+cat ${!j}/* | python $SRC/jsons-to-csv.py > $bench/${out}-sync.csv
+EOF
+    done | parallel --will-cite --line-buffer
 done
