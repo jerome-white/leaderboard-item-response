@@ -21,12 +21,70 @@
 # one row per subject.
 
 ROOT=`git rev-parse --show-toplevel`
-SRC=$ROOT/src/analysis/model-fit
 
 source $ROOT/.venv/bin/activate
 
+export SRC=$ROOT/src/analysis/model-fit
 export PYTHONPATH=$ROOT
 export MATPLOTLIBRC=$SRC/matplotlibrc
+
+fit() {
+    while getopts 'b:i:s:k:w:f:' option; do
+        case $option in
+            b) my_bench=$OPTARG ;;
+            i) my_input=$OPTARG ;;
+            s) my_subject=$OPTARG ;;
+            k) my_worst_k=$OPTARG ;;
+            w) my_wk_json=`mktemp --tmpdir=$OPTARG` ;;
+            f) my_fc_json=`mktemp --tmpdir=$OPTARG` ;;
+            *)
+                echo -e Unrecognized option \"$option\"
+                exit 1
+                ;;
+        esac
+    done
+    chains="--chains $my_subject/output"
+
+    subject=`realpath --relative-to=$my_input $my_subject`
+    output=$my_bench/$subject
+    mkdir --parents $output
+
+    diagnostics=$output/diagnostics.csv
+    python $SRC/diagnostics.py $chains > $diagnostics
+
+    #
+    # worst-k: select the --worst-k worst-converging parameters by
+    # R-hat, trace their chains, and check whether they move together.
+    #
+    out_wk=$output/worst-${my_worst_k}
+    selected=$out_wk/selected.csv
+
+    mkdir $out_wk
+    python $SRC/select-data.py \
+           --worst-k $my_worst_k < $diagnostics > $selected
+    python $SRC/trace.py $chains \
+           --kind trace \
+           --output $out_wk/trace.png < $selected
+    python $SRC/chain-sync.py $chains < $selected > $out_wk/chain-sync.csv
+    python $SRC/sync-report.py \
+           --subject $subject \
+           --diagnostics $diagnostics \
+           --chain-sync $out_wk/chain-sync.csv > $my_wk_json
+
+    #
+    # floor-ceiling: per-item raw response rate vs. that item's own
+    # parameter's R-hat, across the whole item bank - no worst-k
+    # selection involved.
+    #
+    out_fc=$output/floor-ceiling
+
+    mkdir $out_fc
+    python $SRC/item-info.py < $my_subject/stan.json > $out_fc/item-info.csv
+    python $SRC/sync-report.py \
+           --subject $subject \
+           --diagnostics $diagnostics \
+           --item-info $out_fc/item-info.csv > $my_fc_json
+}; export -f fit
 
 _worst_k=3
 _benchmark=()
@@ -61,59 +119,16 @@ trap 'rm --recursive --force $scratch' EXIT
 
 for b in ${_benchmark[@]}; do
     bench=$_output/`basename $b`
+    mkdir --parents $bench
 
     wk_json=`mktemp --directory --tmpdir=$scratch`
     fc_json=`mktemp --directory --tmpdir=$scratch`
 
     for s in $b/*; do
-        chains="--chains $s/output"
-
-        subject=`realpath --relative-to=$b $s`
-        output=$bench/$subject
-        diagnostics=$output/diagnostics.csv
-
-        mkdir --parents $output
-        python $SRC/diagnostics.py $chains > $diagnostics
-
-        #
-        # worst-k: select the --worst-k worst-converging parameters by
-        # R-hat, trace their chains, and check whether they move
-        # together.
-        #
-        out_wk=$output/worst-k
-        selected=$out_wk/selected.csv
-        sync=`mktemp --tmpdir=$wk_json`
-
-        mkdir $out_wk
-        python $SRC/select-data.py \
-               --worst-k $_worst_k < $diagnostics > $selected
-        python $SRC/trace.py $chains \
-               --kind trace \
-               --output $out_wk/trace.png \
-               < $selected
-        python $SRC/chain-sync.py $chains < $selected > $out_wk/chain-sync.csv
-        python $SRC/sync-report.py \
-               --subject $subject \
-               --diagnostics $diagnostics \
-               --chain-sync $out_wk/chain-sync.csv \
-               > $sync
-
-        #
-        # floor-ceiling: per-item raw response rate vs. that item's
-        # own parameter's R-hat, across the whole item bank - no
-        # worst-k selection involved.
-        #
-        out_fc=$output/floor-ceiling
-        sync=`mktemp --tmpdir=$fc_json`
-
-        mkdir $out_fc
-        python $SRC/item-info.py < $s/stan.json > $out_fc/item-info.csv
-        python $SRC/sync-report.py \
-               --subject $subject \
-               --diagnostics $diagnostics \
-               --item-info $out_fc/item-info.csv \
-               > $sync
-    done
+        cat <<EOF
+fit -b $bench -i $b -s $s -k $_worst_k -w $wk_json -f $fc_json
+EOF
+    done | parallel --will-cite --line-buffer
 
     for j in wk_json fc_json; do
         case $j in
