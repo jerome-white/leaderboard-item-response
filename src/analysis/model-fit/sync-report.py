@@ -45,7 +45,7 @@ if __name__ == '__main__':
         # plus the 2 fixed anchors diagnostics.py drops (sd == 0).
         'items': parameter(diagnostics, 'beta').sum(),
         'respondents': parameter(diagnostics, 'theta').sum() + 2,
-    }}
+    })
 
     if args.chain_sync is not None:
          chains = pd.read_csv(args.chain_sync, index_col='parameter')
