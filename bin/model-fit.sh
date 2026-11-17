@@ -1,18 +1,22 @@
 #!/bin/bash
 
-# Separate blocks for each distinct analysis this has grown to cover,
-# rather than one pipeline that always runs every stage regardless of
-# which question is actually being asked. Each block writes into its
-# own directory tree - never sharing a file with another block - and
-# calls sync-report.py itself on just that tree; sync-report.py
-# doesn't know or assume anything about worst-k, it reports whatever
-# the files it's given happen to support (see its own comments), so
-# keeping blocks on separate trees is what keeps each report scoped
-# to its own analysis. No symlinks, no GNU parallel fan-out via
-# heredoc generation - plain sequential loops, some repeated
-# path-building (diagnostics.py re-run per block rather than shared).
-# Clarity over cleverness/speed; revisit parallelism separately if
-# this turns out too slow in practice.
+# Runs two independent analyses per subject (a subject is one model
+# fit - one benchmark/topic combination):
+#
+#   worst-k        Of the parameters that converged worst, do their
+#                  chains wander apart together (a shared confound) or
+#                  independently?
+#   floor-ceiling  Does an item's raw response rate - near 0 or 1 means
+#                  little information, near 0.5 means a lot - predict
+#                  how well its own parameter converged?
+#
+# Each analysis writes into its own directory. diagnostics.csv is
+# computed once per subject and is the one file both share, passed
+# into each analysis's sync-report.py call by explicit path.
+# sync-report.py takes every input as an explicit path on the command
+# line (--diagnostics required; --chain-sync/--item-info optional,
+# whichever the analysis produced), so it never has to assume where a
+# file lives relative to another.
 
 ROOT=`git rev-parse --show-toplevel`
 SRC=$ROOT/src/analysis/model-fit
@@ -64,14 +68,13 @@ for b in ${_benchmark[@]}; do
         python $SRC/diagnostics.py $chains > $diagnostics
 
         #
-        # Block 1 - worst-k / dispersion-correlation
-        # analysis. Original #66 tooling: which parameters converge
-        # worst, do their chains wander apart together (shared
-        # confound) or independently.
+        # worst-k: select the --worst-k worst-converging parameters by
+        # R-hat, trace their chains, and check whether they move
+        # together.
         #
         out_wk=$output/worst-k
         selected=$out_wk/selected.csv
-        sync=$out_wk/sync.csv
+        sync=$out_wk/sync.json
 
         mkdir $out_wk
         python $SRC/select-data.py \
@@ -81,26 +84,26 @@ for b in ${_benchmark[@]}; do
                --output $out_wk/trace.png \
                < $selected
         python $SRC/chain-sync.py $chains < $selected > $out_wk/chain-sync.csv
-        if [ ! -e $sync ]; then
-            python $SRC/sync-report.py --results $out_wk > $sync
-        fi
+        python $SRC/sync-report.py \
+               --subject $subject \
+               --diagnostics $diagnostics \
+               --chain-sync $out_wk/chain-sync.csv \
+               > $sync
 
         #
-        # floor/ceiling analysis. Does an item's own raw response rate
-        # (rate*(1-rate), peaking at 0.5, ->0 at floor/ ceiling)
-        # predict its beta's R-hat, across the whole item bank - no
-        # worst-k selection, no chain-sync, involved at all. Its own
-        # directory, its own diagnostics.csv (re-run, not shared with
-        # block 1) - so sync-report.py here sees only this block's
-        # files.
+        # floor-ceiling: per-item raw response rate vs. that item's
+        # own parameter's R-hat, across the whole item bank - no
+        # worst-k selection involved.
         #
         out_fc=$output/floor-ceiling
-        sync=$out_fc/sync.csv
+        sync=$out_fc/sync.json
 
         mkdir $out_fc
         python $SRC/item-info.py < $s/stan.json > $out_fc/item-info.csv
-        if [ ! -e $sync ]; then
-            python $SRC/sync-report.py --results $out_fc > $sync
-        fi
+        python $SRC/sync-report.py \
+               --subject $subject \
+               --diagnostics $diagnostics \
+               --item-info $out_fc/item-info.csv \
+               > $sync
     done
 done
