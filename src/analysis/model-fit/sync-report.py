@@ -65,7 +65,13 @@ if __name__ == '__main__':
     if args.item_info is not None:
         items = pd.read_csv(args.item_info, index_col='item')
         beta = diagnostics[parameter(diagnostics, 'beta')].copy()
-        beta['item'] = beta.index.str.extract(r'\[(\d+)\]')[0].astype(int)
+        params = beta.index.str.extract(r'\[(\d+)\]')
+
+        # cmdstanpy/arviz label array elements 0-indexed (beta[0]..),
+        # while item-info.csv's item column is q_i straight out of
+        # stan.json, Stan's own 1-indexed item id - off by one.
+        beta['item'] = params[0].astype(int).values + 1
+
         beta = beta.join(items, on='item')
         record.update({
             'info_median': items['info'].median(),
