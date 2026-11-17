@@ -15,11 +15,12 @@
 # this turns out too slow in practice.
 
 ROOT=`git rev-parse --show-toplevel`
+SRC=$ROOT/src/analysis/model-fit
 
-export PYTHONPATH=$ROOT
 source $ROOT/.venv/bin/activate
 
-_src=$ROOT/src/analysis/model-fit
+export PYTHONPATH=$ROOT
+export MATPLOTLIBRC=$SRC/matplotlibrc
 
 _worst_k=3
 _benchmark=()
@@ -44,57 +45,62 @@ EOF
     esac
 done
 
+if [ -d $_output ]; then
+    echo "$_output exists. Please remove first" >&2
+    exit 1
+fi
+
 for b in ${_benchmark[@]}; do
-    bench=`basename $b`
+    bench=$_output/`basename $b`
 
-    #
-    # Block 1 - worst-k / dispersion-correlation analysis. Original
-    # #66 tooling: which parameters converge worst, do their chains
-    # wander apart together (shared confound) or independently.
-    #
     for s in $b/*; do
+        chains="--chains $s/output"
+
         subject=`realpath --relative-to=$b $s`
-        output=$_output/$bench/worst-k/$subject
-        mkdir --parents $output
-
-        echo "[ `date` ] $bench/$subject - worst-k"
-
+        output=$bench/$subject
         diagnostics=$output/diagnostics.csv
-        python $_src/diagnostics.py --chains $s/output > $diagnostics
 
-        selected=$output/selected.csv
-        python $_src/select-data.py --worst-k $_worst_k < $diagnostics > $selected
-
-        MATPLOTLIBRC=$_src/matplotlibrc python $_src/trace.py \
-                     --chains $s/output \
-                     --kind trace \
-                     --output $output/trace.png < $selected
-
-        python $_src/chain-sync.py --chains $s/output < $selected > $output/chain-sync.csv
-    done
-
-    echo "[ `date` ] $bench sync report - worst-k"
-    python $_src/sync-report.py --results $_output/$bench/worst-k > $_output/$bench/worst-k/sync.csv
-
-    #
-    # Block 2 - floor/ceiling analysis. Does an item's own raw
-    # response rate (rate*(1-rate), peaking at 0.5, ->0 at floor/
-    # ceiling) predict its beta's R-hat, across the whole item bank -
-    # no worst-k selection, no chain-sync, involved at all. Its own
-    # directory, its own diagnostics.csv (re-run, not shared with
-    # block 1) - so sync-report.py here sees only this block's files.
-    #
-    for s in $b/*; do
-        subject=`realpath --relative-to=$b $s`
-        output=$_output/$bench/floor-ceiling/$subject
         mkdir --parents $output
+        python $SRC/diagnostics.py $chains > $diagnostics
 
-        echo "[ `date` ] $bench/$subject - floor/ceiling"
+        #
+        # Block 1 - worst-k / dispersion-correlation
+        # analysis. Original #66 tooling: which parameters converge
+        # worst, do their chains wander apart together (shared
+        # confound) or independently.
+        #
+        out_wk=$output/worst-k
+        selected=$out_wk/selected.csv
+        sync=$out_wk/sync.csv
 
-        python $_src/diagnostics.py --chains $s/output > $output/diagnostics.csv
-        python $_src/item-info.py < $s/stan.json > $output/item-info.csv
+        mkdir $out_wk
+        python $SRC/select-data.py \
+               --worst-k $_worst_k < $diagnostics > $selected
+        python $SRC/trace.py $chains \
+               --kind trace \
+               --output $out_wk/trace.png \
+               < $selected
+        python $SRC/chain-sync.py $chains < $selected > $out_wk/chain-sync.csv
+        if [ ! -e $sync ]; then
+            python $SRC/sync-report.py --results $out_wk > $sync
+        fi
+
+        #
+        # floor/ceiling analysis. Does an item's own raw response rate
+        # (rate*(1-rate), peaking at 0.5, ->0 at floor/ ceiling)
+        # predict its beta's R-hat, across the whole item bank - no
+        # worst-k selection, no chain-sync, involved at all. Its own
+        # directory, its own diagnostics.csv (re-run, not shared with
+        # block 1) - so sync-report.py here sees only this block's
+        # files.
+        #
+        out_fc=$output/floor-ceiling
+        sync=$out_fc/sync.csv
+
+        mkdir $out_fc
+        python $SRC/item-info.py < $s/stan.json > $out_fc/item-info.csv
+        if [ ! -e $sync ]; then
+            python $SRC/sync-report.py --results $out_fc > $sync
+        fi
     done
-
-    echo "[ `date` ] $bench sync report - floor/ceiling"
-    python $_src/sync-report.py --results $_output/$bench/floor-ceiling > $_output/$bench/floor-ceiling/info.csv
 done
