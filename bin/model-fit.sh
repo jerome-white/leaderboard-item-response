@@ -19,6 +19,12 @@
 # file lives relative to another. jsons-to-csv.py then combines each
 # analysis's per-subject sync.json files into one CSV per benchmark,
 # one row per subject.
+#
+# A third step, cross-reference.py, runs after both analyses for a
+# subject are done, since it needs a file from each: for every beta
+# in that subject's worst-k set, how strongly its chain-dispersion
+# correlates with the rest of the worst-k set, next to that item's
+# floor/ceiling info. One CSV per benchmark, one row per worst-k beta.
 
 ROOT=`git rev-parse --show-toplevel`
 
@@ -29,7 +35,7 @@ export PYTHONPATH=$ROOT
 export MATPLOTLIBRC=$SRC/matplotlibrc
 
 fit() {
-    while getopts 'b:i:s:k:w:f:' option; do
+    while getopts 'b:i:s:k:w:f:c:' option; do
         case $option in
             b) my_bench=$OPTARG ;;
             i) my_input=$OPTARG ;;
@@ -37,6 +43,7 @@ fit() {
             k) my_worst_k=$OPTARG ;;
             w) my_wk_json=`mktemp --tmpdir=$OPTARG` ;;
             f) my_fc_json=`mktemp --tmpdir=$OPTARG` ;;
+            c) my_cr_csv=`mktemp --tmpdir=$OPTARG` ;;
             *)
                 echo -e Unrecognized option \"$option\"
                 exit 1
@@ -84,6 +91,15 @@ fit() {
            --subject $subject \
            --diagnostics $diagnostics \
            --item-info $out_fc/item-info.csv > $my_fc_json
+
+    #
+    # cross-reference: for each worst-k beta, how strongly it moves
+    # with the rest of the worst-k set, next to that item's info.
+    #
+    python $SRC/cross-reference.py \
+           --subject $subject \
+           --chain-sync $out_wk/chain-sync.csv \
+           --item-info $out_fc/item-info.csv > $my_cr_csv
 }; export -f fit
 
 _worst_k=3
@@ -121,23 +137,26 @@ for b in ${_benchmark[@]}; do
     bench=$_output/`basename $b`
     mkdir --parents $bench
 
-    wk_json=`mktemp --directory --tmpdir=$scratch`
-    fc_json=`mktemp --directory --tmpdir=$scratch`
+    tmp=()
+    for i in w f c; do
+        tmp+=( -$i `mktemp --directory --tmpdir=$scratch` )
+    done
 
     for s in $b/*; do
         cat <<EOF
-fit -b $bench -i $b -s $s -k $_worst_k -w $wk_json -f $fc_json
+fit -b $bench -i $b -s $s -k $_worst_k ${tmp[@]}
 EOF
     done | parallel --will-cite --line-buffer
 
-    for j in wk_json fc_json; do
-        case $j in
-            wk_json) out=worst-${_worst_k} ;;
-            fc_json) out=floor-ceiling ;;
+    for ((i=0; i<${#tmp[@]}; i+=2)); do
+        case ${tmp[$i]:1} in
+            w) out=worst-${_worst_k}-sync ;;
+            f) out=floor-ceiling-sync ;;
+            c) out=cross-reference ;;
             *) exit 1 ;;
         esac
         cat<<EOF
-cat ${!j}/* | python $SRC/jsons-to-csv.py > $bench/${out}-sync.csv
+cat ${tmp[$i+1]}/* | python $SRC/jsons-to-csv.py > $bench/${out}.csv
 EOF
     done | parallel --will-cite --line-buffer
 done
