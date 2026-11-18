@@ -25,6 +25,7 @@ if __name__ == '__main__':
     arguments = ArgumentParser()
     arguments.add_argument('--subject')
     arguments.add_argument('--diagnostics', type=Path)
+    arguments.add_argument('--sampler-diagnostics', type=Path)
     arguments.add_argument('--chain-sync', type=Path)
     arguments.add_argument('--item-info', type=Path)
     args = arguments.parse_args()
@@ -46,6 +47,17 @@ if __name__ == '__main__':
         'items': parameter(diagnostics, 'beta').sum(),
         'respondents': parameter(diagnostics, 'theta').sum() + 2,
     })
+
+    # Standard NUTS pathology checks (divergences, BFMI) - cheap to
+    # compute since sampler-diagnostics.py builds the same idata
+    # diagnostics.py does, just doesn't need to repeat it per-analysis.
+    if args.sampler_diagnostics is not None:
+        sampler = pd.read_csv(args.sampler_diagnostics).iloc[0]
+        record.update({
+            'divergences': sampler['divergences'],
+            'bfmi_min': sampler['bfmi_min'],
+            'bfmi_max': sampler['bfmi_max'],
+        })
 
     if args.chain_sync is not None:
          chains = pd.read_csv(args.chain_sync, index_col='parameter')

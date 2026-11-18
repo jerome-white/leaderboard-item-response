@@ -10,15 +10,21 @@
 #                  little information, near 0.5 means a lot - predict
 #                  how well its own parameter converged?
 #
-# Each analysis writes into its own directory. diagnostics.csv is
-# computed once per subject and is the one file both share, passed
-# into each analysis's sync-report.py call by explicit path.
-# sync-report.py takes every input as an explicit path on the command
-# line (--diagnostics required; --chain-sync/--item-info optional,
-# whichever the analysis produced), so it never has to assume where a
-# file lives relative to another. jsons-to-csv.py then combines each
-# analysis's per-subject sync.json files into one CSV per benchmark,
-# one row per subject.
+# Each analysis writes into its own directory. diagnostics.csv and
+# sampler-diagnostics.csv are each computed once per subject and are
+# shared by both, passed into each analysis's sync-report.py call by
+# explicit path. sampler-diagnostics.csv holds the standard NUTS
+# pathology checks (divergences, BFMI) - cheap, since it reuses the
+# same idata diagnostics.py already builds; checking these before
+# reading anything into chain-sync/floor-ceiling tells you whether a
+# subject's sampler was outright broken (divergent, low BFMI) versus
+# merely showing the softer correlated-wandering those two analyses
+# look for. sync-report.py takes every input as an explicit path on
+# the command line (--diagnostics required; --sampler-diagnostics/
+# --chain-sync/--item-info optional, whichever the analysis produced),
+# so it never has to assume where a file lives relative to another.
+# jsons-to-csv.py then combines each analysis's per-subject sync.json
+# files into one CSV per benchmark, one row per subject.
 #
 # A third step, cross-reference.py, runs after both analyses for a
 # subject are done, since it needs a file from each: for every beta
@@ -59,6 +65,9 @@ fit() {
     diagnostics=$output/diagnostics.csv
     python $SRC/diagnostics.py $chains > $diagnostics
 
+    sampler=$output/sampler-diagnostics.csv
+    python $SRC/sampler-diagnostics.py $chains > $sampler
+
     #
     # worst-k: select the --worst-k worst-converging parameters by
     # R-hat, trace their chains, and check whether they move together.
@@ -76,6 +85,7 @@ fit() {
     python $SRC/sync-report.py \
            --subject $subject \
            --diagnostics $diagnostics \
+           --sampler-diagnostics $sampler \
            --chain-sync $out_wk/chain-sync.csv > $my_wk_json
 
     #
@@ -90,6 +100,7 @@ fit() {
     python $SRC/sync-report.py \
            --subject $subject \
            --diagnostics $diagnostics \
+           --sampler-diagnostics $sampler \
            --item-info $out_fc/item-info.csv > $my_fc_json
 
     #
