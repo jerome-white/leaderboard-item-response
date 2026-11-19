@@ -18,8 +18,12 @@ if __name__ == '__main__':
     arguments.add_argument('--exclude', type=int, action='append')
     args = arguments.parse_args()
 
+    exclude = set()
+    if args.exclude is not None:
+        exclude.update(args.exclude)
+
     writer = None
-    for row in scanf(sys.stdin, set(args.exclude)):
+    for row in scanf(sys.stdin, exclude):
         if writer is None:
             writer = csv.DictWriter(sys.stdout, fieldnames=row)
             writer.writeheader()

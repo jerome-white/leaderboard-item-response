@@ -67,8 +67,7 @@ echo "[ \`date\` ] START $dname" 1>&2 \
            output \
              file=$output/chain.csv \
              num_threads=$_stan_workers \
-           $_stan_seed
-           &> $dname/log \
+           $_stan_seed &> $dname/log \
     && $CMDSTAN/bin/stansummary \
            --csv_filename=$summary \
            $output/*.csv >> $dname/log \
