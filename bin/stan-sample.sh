@@ -7,16 +7,18 @@ _stan_samples=1000
 _stan_warmup=$_stan_samples
 _stan_jobs=1
 
-while getopts 'r:s:w:p:j:h' option; do
+while getopts 'r:s:w:p:j:e:h' option; do
     case $option in
         r) _results=$OPTARG ;;
         s) _stan_samples=$OPTARG ;;
         w) _stan_workers=$OPTARG ;;
         p) _stan_warmup=$OPTARG ;;
         j) _stan_jobs=$OPTARG ;;
+        e) _stan_seed=$OPTARG ;;
         h)
             cat <<EOF
 Usage: $0
+ -e Random seed (optional; omit for cmdstan's own default)
 EOF
             exit 0
             ;;
@@ -33,6 +35,11 @@ if [[ -z $_stan_workers ]]; then
 fi
 if [ $_stan_workers -lt 1 ]; then
     _stan_workers=1
+fi
+
+seed=
+if [[ -n $_stan_seed ]]; then
+    seed="random seed=$_stan_seed"
 fi
 
 model=$ROOT/src/model/model
@@ -64,7 +71,8 @@ echo "[ \`date\` ] START $dname" 1>&2 \
            init=$dname/init.json \
            output \
            file=$output/chain.csv \
-           num_threads=$_stan_workers &> $dname/log \
+           num_threads=$_stan_workers \
+           $seed &> $dname/log \
     && $CMDSTAN/bin/stansummary \
            --csv_filename=$summary \
            $output/*.csv >> $dname/log \
