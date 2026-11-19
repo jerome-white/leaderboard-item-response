@@ -5,10 +5,11 @@ from ._db import (
     ModelMetadata,
     QuestionDatabase,
 )
-
 from ._utils import (
+    AuthorModelHandler,
     Backoff,
     DatasetPathHandler,
+    DocumentHandler,
     retry_after,
 )
 from ._dtypes import (

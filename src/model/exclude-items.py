@@ -2,35 +2,25 @@ import sys
 import csv
 from argparse import ArgumentParser
 
-# Reproduces build-ids.py's DocumentHandler numbering (first-seen order,
-# 1-indexed) so a --exclude list of document_id/q_i values - computed
-# against the already-built stan.json/diagnostics.csv - can be applied
-# here, before build-ids.py ever runs. Dropping at this pre-ID stage
-# means build-ids.py renumbers what's left contiguously on its own;
-# nothing downstream needs patched index arithmetic.
-class DocumentHandler:
-    def __init__(self):
-        self.db = {}
-
-    def __call__(self, data):
-        return self.db.setdefault(data['document'], len(self.db) + 1)
+from mylib import Logger, DocumentHandler
 
 def scanf(fp, exclude: set):
-    handle = DocumentHandler()
     reader = csv.DictReader(fp)
-    writer = None
+    handle = DocumentHandler()
 
     for row in reader:
-        document_id = handle(row)
-        if document_id not in exclude:
-            if writer is None:
-                writer = csv.DictWriter(sys.stdout, fieldnames=reader.fieldnames)
-                writer.writeheader()
-            writer.writerow(row)
+        doc_id = handle(row)
+        if doc_id not in exclude:
+            yield row
 
 if __name__ == '__main__':
     arguments = ArgumentParser()
-    arguments.add_argument('--exclude', type=int, action='append', required=True)
+    arguments.add_argument('--exclude', type=int, action='append')
     args = arguments.parse_args()
 
-    scanf(sys.stdin, set(args.exclude))
+    writer = None
+    for row in scanf(sys.stdin, set(args.exclude)):
+        if writer is None:
+            writer = csv.DictWriter(sys.stdout, fieldnames=row)
+            writer.writeheader()
+        writer.writerow(row)
