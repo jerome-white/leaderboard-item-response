@@ -14,7 +14,7 @@ while getopts 'r:s:w:p:j:e:h' option; do
         w) _stan_workers=$OPTARG ;;
         p) _stan_warmup=$OPTARG ;;
         j) _stan_jobs=$OPTARG ;;
-        e) _stan_seed=$OPTARG ;;
+        e) _stan_seed="random seed=$OPTARG" ;;
         h)
             cat <<EOF
 Usage: $0
@@ -35,11 +35,6 @@ if [[ -z $_stan_workers ]]; then
 fi
 if [ $_stan_workers -lt 1 ]; then
     _stan_workers=1
-fi
-
-seed=
-if [[ -n $_stan_seed ]]; then
-    seed="random seed=$_stan_seed"
 fi
 
 model=$ROOT/src/model/model
@@ -63,16 +58,17 @@ find $_results -name 'stan.json' \
 echo "[ \`date\` ] START $dname" 1>&2 \
     && $model \
            sample \
-           num_samples=$_stan_samples \
-           num_warmup=$_stan_warmup \
-           num_chains=$_stan_workers \
+             num_samples=$_stan_samples \
+             num_warmup=$_stan_warmup \
+             num_chains=$_stan_workers \
            data \
-           file=$dname/stan.json \
-           init=$dname/init.json \
+             file=$dname/stan.json \
+             init=$dname/init.json \
            output \
-           file=$output/chain.csv \
-           num_threads=$_stan_workers \
-           $seed &> $dname/log \
+             file=$output/chain.csv \
+             num_threads=$_stan_workers \
+           $_stan_seed
+           &> $dname/log \
     && $CMDSTAN/bin/stansummary \
            --csv_filename=$summary \
            $output/*.csv >> $dname/log \
