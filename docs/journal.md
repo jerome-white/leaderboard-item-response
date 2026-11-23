@@ -86,22 +86,3 @@ fine-tunes, merges and distillations of the same few bases. In one check,
 corroborated merges were somewhat more correlated with each other, but
 excluding them ([#57](https://github.com/jerome-white/leaderboard-item-response/issues/57)) or letting `theta` vary by group ([#58](https://github.com/jerome-white/leaderboard-item-response/issues/58)) didn't change
 convergence. A possible assumption violation, not yet characterized.
-
-## Ongoing: Why has this been harder than it looked?
-
-I wanted to understand why this exploration felt so much harder than what
-others seemed to be doing. One idea, which came out of a conversation with an
-AI model and which I'm keeping as a hypothesis: running several independently
-started chains and checking that they agree (R-hat, ESS) may have made a
-problem visible that other fitting approaches can hide. A maximum-likelihood
-fit from a single start, or a mean-field variational fit, doesn't obviously
-come with an equivalent check unless you add one, for example by restarting
-from several initializations. Whether those approaches run into the same
-problem on LLM evaluation data is an open question (see
-[related work](related-work.md)).
-
-Initialization sensitivity in MCMC is well known in general, so the finding
-itself probably isn't new. The combination may be what's interesting: a
-multi-chain workflow on LLM evaluation data, where the usual IRT assumptions
-(independent examinees, a single latent trait) may hold less well than in
-human testing. Whether any of this is worth writing up is open.
