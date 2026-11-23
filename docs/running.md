@@ -100,9 +100,10 @@ have been workable so far. Running on AWS has been planned (issues [#63](https:/
 and sketched in a draft PR ([#65](https://github.com/jerome-white/leaderboard-item-response/issues/65)), but it is unfinished and deprioritized;
 don't treat it as a supported path.
 
-**Chain initialization is not optional.** `stan-sample.sh` passes
-`init=<subject>/init.json`. Without it, CmdStan's default random-per-chain
-initialization fails to converge on this model (see the [journal](journal.md)).
+**Chain initialization seems to matter a lot.** `stan-sample.sh` passes
+`init=<subject>/init.json`. In my runs, without it (CmdStan's default
+random-per-chain initialization) almost nothing converged on this model; see
+the [journal](journal.md). I'd keep `init=` unless you're testing exactly that.
 
 **Do not write into `data/opt/` or `data/hugging-face/`.** They gate very
 long-running processes (the Hugging Face download and full Stan sampling), so

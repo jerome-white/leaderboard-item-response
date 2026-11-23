@@ -88,7 +88,7 @@ not conclusions.
 ### Elo, Bradley-Terry and 2PL
 
 Bradley-Terry, the paired-comparison model, has one strength parameter per
-player, which is the same structure as the one-parameter (Rasch, 1PL) IRT
+player, which looks closely analogous to the one-parameter (Rasch, 1PL) IRT
 model. Elo is commonly described as an online way of updating such strengths.
 2PL adds a per-item discrimination `alpha` that neither has.
 
