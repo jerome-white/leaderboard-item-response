@@ -42,9 +42,10 @@ tests/                pytest suite
 git clone https://github.com/jerome-white/leaderboard-item-response
 cd leaderboard-item-response
 uv sync                      # creates .venv; the bin/ scripts activate it
-# build CmdStan in ./cmdstan-2.40.0, then compile the model:
+# unpack CmdStan 2.40.0 as ./cmdstan-2.40.0 and build it (standard CmdStan step):
 (cd cmdstan-2.40.0 && make build)
-(cd cmdstan-2.40.0 && make $PWD/../src/model/model)   # stan-sample.sh also does this
+# compile the model (stan-sample.sh also does this on every run):
+(cd cmdstan-2.40.0 && make --jobs=$(nproc) $PWD/../src/model/model)
 ```
 
 Run the tests with `uv run pytest tests/`.
@@ -55,7 +56,12 @@ This code has only ever been run on one machine, a 2024 Mac mini (M4 Pro, 64 GB)
 Other machines and operating systems are untested.
 
 The scripts are meant to be run in order. Each stage writes under `data/`, and
-later stages find their inputs there. Pass `-h` to any script for its options.
+later stages find their inputs there. Most scripts take `-h` for their options,
+but `bin/stan-prep.sh`'s help text is out of date: use the options below.
+
+The layout on disk is `data/hugging-face/` (downloaded `responses/` and
+`metadata/db.sqlite`), `data/opt/<benchmark>/<subject>/` (Stan inputs and
+sampling output), and `data/fit/` (diagnostics).
 
 ```bash
 # 1. Collect: list leaderboard result files, download per-question responses,
@@ -64,14 +70,26 @@ later stages find their inputs there. Pass `-h` to any script for its options.
 bin/hf-download.sh -o data/hugging-face
 
 # 2. Prepare Stan inputs per subject (stan.json, variables.json, init.json).
-bin/stan-prep.sh -d data/hugging-face
+#    -d is the data root; results always go to <data root>/opt.
+bin/stan-prep.sh -d data \
+    -r data/hugging-face/responses \
+    -b data/hugging-face/metadata/db.sqlite
 
 # 3. Sample. Slow: see the cost note below. Skips subjects that already have a summary.csv.
-bin/stan-sample.sh -r data/opt -s 1000 -p 1000 -j 1
+#    -s samples and -p warmup (both default to 1000), -w chains per subject
+#    (defaults to the core count), -j subjects run concurrently (default 1),
+#    -e seed (optional). The production runs used 4 chains.
+bin/stan-sample.sh -r data/opt -w 4
 
 # 4. Diagnose the fits. Writes per-subject diagnostics and cross-subject reports.
-bin/model-fit.sh -b mmlu -o data/fit
+#    -b is a path to a benchmark directory, not a bare name. -o must not
+#    already exist. -k is how many worst-converging parameters to examine
+#    (default 3; the results in the journal used 10).
+bin/model-fit.sh -b data/opt/mmlu -o data/fit -k 10
 ```
+
+These four commands were reconstructed from the scripts and the existing
+`data/` layout, not replayed from a log of the original runs.
 
 **Cost note.** At `num_warmup=1000`, one run of the full 13-subject MMLU suite
 took 61.1 hours on a Mac mini (2024, M4 Pro, 64 GB) (the largest subject, math, took about 13.8 hours
