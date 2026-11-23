@@ -49,16 +49,14 @@ era (June 2024 to March 2025), each fit as its own model.
 
 ### Layout
 
+Relevant code:
+
 ```
 bin/                  Shell entry points for each pipeline stage
   hf-download.sh        1. Download leaderboard results from Hugging Face
   stan-prep.sh          2. Build Stan inputs (data, variables, chain inits) per subject
   stan-sample.sh        3. Run Stan sampling
   model-fit.sh          4. Model-fit diagnostics (R-hat/ESS, chain sync, floor/ceiling)
-  hf-upload.sh          Publish results back to Hugging Face
-  exclude-items.sh      EXPERIMENTAL: refit-prep with chosen items removed, one subject at a time
-  prior-check.sh, hierarchical-check.sh
-                        One-off model-variant comparisons from the investigations in the journal
 src/
   data/                 Collection: list, gather, reduce, download (rate-limit and gating aware)
   experiments/          Defines what gets fit (one experiment per MMLU subject)
@@ -98,6 +96,9 @@ Run the tests with `uv run pytest tests/`.
 
 ## 3. How to run things
 
+This code has only ever been run on one machine, a 2024 Mac mini (M4 Pro, 64 GB).
+Other machines and operating systems are untested.
+
 The scripts are meant to be run in order. Each stage writes under `data/`, and
 later stages find their inputs there. Pass `-h` to any script for its options.
 
@@ -118,12 +119,12 @@ bin/model-fit.sh -b mmlu -o data/fit
 ```
 
 **Cost note.** At `num_warmup=1000`, one run of the full 13-subject MMLU suite
-took 61.1 hours on a laptop (the largest subject, math, took about 13.8 hours
+took 61.1 hours on a Mac mini (2024, M4 Pro, 64 GB) (the largest subject, math, took about 13.8 hours
 alone). Runtime grows faster than linearly in the number of items (roughly
 `N^1.56`). Run these in `tmux`/`nohup` with the machine kept awake. A
-laptop that sleeps stalls the job. Single-subject runs on 8 cores overnight
-have been workable so far. Running on AWS has been planned (issues #63, #67)
-and sketched in a draft PR (#65), but it is unfinished and deprioritized;
+machine that sleeps stalls the job. Single-subject runs on 8 cores overnight
+have been workable so far. Running on AWS has been planned (issues [#63](https://github.com/jerome-white/leaderboard-item-response/issues/63), [#67](https://github.com/jerome-white/leaderboard-item-response/issues/67))
+and sketched in a draft PR ([#65](https://github.com/jerome-white/leaderboard-item-response/issues/65)), but it is unfinished and deprioritized;
 don't treat it as a supported path.
 
 **Chain initialization is not optional.** `stan-sample.sh` passes
@@ -136,7 +137,7 @@ treat them as read-only when experimenting. Write experiment output
 elsewhere, for example `data/experiments/`.
 
 **Refitting with items removed (experimental).** `bin/exclude-items.sh` was
-built for issue #71. It works on one subject at a time, is not yet a sweep
+built for issue [#71](https://github.com/jerome-white/leaderboard-item-response/issues/71). It works on one subject at a time, is not yet a sweep
 over subjects, and isn't part of the main pipeline. It rebuilds
 `stan.json`/`variables.json`/`init.json` with the given item ids dropped:
 
@@ -177,7 +178,7 @@ Applying IRT to LLM benchmark results is a small but real subfield
   [link](https://aclanthology.org/2025.naacl-long.262/)). Manual
   re-annotation of MMLU, finding substantial label errors. Not IRT, but a
   human-labelled counterpart to what the item parameters here are meant to
-  surface (planned comparison: issue #69).
+  surface (planned comparison: issue [#69](https://github.com/jerome-white/leaderboard-item-response/issues/69)).
 
 Where this project sits relative to those: most of that work *uses* IRT as a
 tool (to shrink benchmarks, or to audit them). This repo spends its effort on
@@ -198,34 +199,34 @@ point to the evidence.
 **Data collection is most of the work.** The leaderboard's per-question files
 have gated repos, rate limits, canonical (no-author) model names, and
 multiple result files per model. A large share of the early history is
-making collection resilient (#3 to #34). One finding that shaped the model
+making collection resilient ([#3](https://github.com/jerome-white/leaderboard-item-response/issues/3) to [#34](https://github.com/jerome-white/leaderboard-item-response/issues/34)). One finding that shaped the model
 inputs: `doc_hash` is a hash of the raw document dict and drifts across
 harness and dataset revisions, so question identity is keyed on `doc_id`
-instead (#21, #26). The leaderboard has two incompatible eras (v1, v2); this
+instead ([#21](https://github.com/jerome-white/leaderboard-item-response/issues/21), [#26](https://github.com/jerome-white/leaderboard-item-response/issues/26)). The leaderboard has two incompatible eras (v1, v2); this
 repo uses v2 only.
 
 **Per-subject models, not grouped MMLU.** Fitting MMLU super-categories
-together was retired in favor of one model per subject (#37).
+together was retired in favor of one model per subject ([#37](https://github.com/jerome-white/leaderboard-item-response/issues/37)).
 
 **The 2PL model is not identified as written, and anchoring fixed that
-(#45, #47).** `alpha`, `beta` and `theta` can trade off exactly: scaling
+([#45](https://github.com/jerome-white/leaderboard-item-response/issues/45), [#47](https://github.com/jerome-white/leaderboard-item-response/issues/47)).** `alpha`, `beta` and `theta` can trade off exactly: scaling
 `alpha` by `c` and `theta`, `beta` by `1/c` leaves the likelihood unchanged,
 and shifting `theta` and `beta` together does too. Pinning two abilities
 (`theta[1]`, `theta[2]`) removes it. A first attempt, hard-standardizing
 `theta` inside the model, was mathematically right but gave the sampler such
 bad geometry that it effectively stalled.
 
-**Allowing negative discrimination surfaces bad items (#22, #35).** Dropping
+**Allowing negative discrimination surfaces bad items ([#22](https://github.com/jerome-white/leaderboard-item-response/issues/22), [#35](https://github.com/jerome-white/leaderboard-item-response/issues/35)).** Dropping
 the `alpha > 0` constraint lets mis-keyed or ambiguous questions show up as
 negative discrimination instead of being squeezed into a positive fit.
 
 **The big one: the multimodality was initialization, not the model
-(#46, #60, #62).** After the changes above, essentially every parameter
+([#46](https://github.com/jerome-white/leaderboard-item-response/issues/46), [#60](https://github.com/jerome-white/leaderboard-item-response/issues/60), [#62](https://github.com/jerome-white/leaderboard-item-response/issues/62)).** After the changes above, essentially every parameter
 (about 99% of `alpha`, `beta` and `theta`) had R-hat > 1.1 on real data.
 Six model-side explanations were tested and none moved that number: a tighter
-`alpha` prior (#52), a different anchor choice (#56), excluding merged models
-(#57), group-varying `theta` by model type (#58), group-level differential
-item functioning (#59), and fully hierarchical `alpha`/`beta` (#53). What
+`alpha` prior ([#52](https://github.com/jerome-white/leaderboard-item-response/issues/52)), a different anchor choice ([#56](https://github.com/jerome-white/leaderboard-item-response/issues/56)), excluding merged models
+([#57](https://github.com/jerome-white/leaderboard-item-response/issues/57)), group-varying `theta` by model type ([#58](https://github.com/jerome-white/leaderboard-item-response/issues/58)), group-level differential
+item functioning ([#59](https://github.com/jerome-white/leaderboard-item-response/issues/59)), and fully hierarchical `alpha`/`beta` ([#53](https://github.com/jerome-white/leaderboard-item-response/issues/53)). What
 did work, with the model untouched, was giving all chains one shared,
 data-informed starting point instead of CmdStan's independent random
 starts:
@@ -242,17 +243,17 @@ Chains started at random scattered into different basins before warmup could
 pull them together. In hindsight the model-side hypotheses above failed because
 every one of them was sampled with random init.
 
-**Warmup of 1000 is enough, but cost grows fast (#62).** Validated on three
+**Warmup of 1000 is enough, but cost grows fast ([#62](https://github.com/jerome-white/leaderboard-item-response/issues/62)).** Validated on three
 subjects spanning 3.5x in item count. Runtime scales roughly as `N^1.56` in
 the number of items.
 
-**Whole-suite convergence (#66).** Across all 13 MMLU subjects (61.1 hours),
+**Whole-suite convergence ([#66](https://github.com/jerome-white/leaderboard-item-response/issues/66)).** Across all 13 MMLU subjects (61.1 hours),
 `theta` converges everywhere (0% bad R-hat), `alpha` nearly everywhere, and
 `beta` has a residual of 8 to 31% bad R-hat that varies by subject
 independently of item count.
 
 **Convergence is not fit: what the residual `beta` problems look like
-(#66, tooling in #68).** Looking at the worst-converging items per subject
+([#66](https://github.com/jerome-white/leaderboard-item-response/issues/66), tooling in [#68](https://github.com/jerome-white/leaderboard-item-response/issues/68)).** Looking at the worst-converging items per subject
 turned up two distinct mechanisms, often mixed in one subject:
 - *isolated items* with `alpha` near zero. When discrimination is about zero,
   the likelihood barely depends on `beta`, so `beta` wanders freely. A
@@ -281,12 +282,12 @@ Further results:
   production run's default seed. That is a swing of roughly 60x from the seed
   alone, big enough to swamp the effect of the prior and hierarchical
   variants I tried. It's one subject and two seeds, so treat it as a
-  warning, not an estimate (#66, #72).
+  warning, not an estimate ([#66](https://github.com/jerome-white/leaderboard-item-response/issues/66), [#72](https://github.com/jerome-white/leaderboard-item-response/issues/72)).
 
 **Models are not independent test takers.** A premise of IRT is independent
 examinees. Many leaderboard "models" are fine-tunes, merges and distillations
 of the same few bases. Corroborated merges are modestly more correlated with
-each other, but excluding them (#57) or letting `theta` vary by group (#58)
+each other, but excluding them ([#57](https://github.com/jerome-white/leaderboard-item-response/issues/57)) or letting `theta` vary by group ([#58](https://github.com/jerome-white/leaderboard-item-response/issues/58))
 didn't change convergence. This remains an assumption violation to keep in
 mind, not one that has been resolved.
 
@@ -300,22 +301,22 @@ a rigorous multi-chain workflow applied to LLM-evaluation data, where the usual
 IRT assumptions (independent examinees, a single latent trait) are more
 strained than in human testing.
 
-**Open: does any of this change a leaderboard? (#70, in progress)**
+**Open: does any of this change a leaderboard? ([#70](https://github.com/jerome-white/leaderboard-item-response/issues/70), in progress)**
 Everything above is about the fit. The question that connects back to LLM
 evaluation is whether the pathologies move `theta`, the thing a leaderboard
 would read off. The planned checks, cheapest first:
 - refit `history` with items removed and compare model rankings with the
-  full fit by Spearman correlation (#71). The data prep is done: it drops
+  full fit by Spearman correlation ([#71](https://github.com/jerome-white/leaderboard-item-response/issues/71)). The data prep is done: it drops
   all 115 of history's 381 items whose `beta` has R-hat > 1.1, a deliberately
   broad first pass. A second pass with only the 8 mechanistically flagged
-  items may follow (#80). The refit (#78) hasn't been run and the comparison
-  script (#79) doesn't exist yet. Whether having about 30% of items with
+  items may follow ([#80](https://github.com/jerome-white/leaderboard-item-response/issues/80)). The refit ([#78](https://github.com/jerome-white/leaderboard-item-response/issues/78)) hasn't been run and the comparison
+  script ([#79](https://github.com/jerome-white/leaderboard-item-response/issues/79)) doesn't exist yet. Whether having about 30% of items with
   elevated R-hat moves `theta` at all is the open question; it is not
   evidence that the leaderboard is wrong.
-- how much seed variance alone moves `theta` (#72)
-- if rankings do move, which mechanism drives it (#73) and whether the
-  ordering of models that matter flips (#74)
+- how much seed variance alone moves `theta` ([#72](https://github.com/jerome-white/leaderboard-item-response/issues/72))
+- if rankings do move, which mechanism drives it ([#73](https://github.com/jerome-white/leaderboard-item-response/issues/73)) and whether the
+  ordering of models that matter flips ([#74](https://github.com/jerome-white/leaderboard-item-response/issues/74))
 - whether the pathological items coincide with MMLU-Redux's human-flagged
-  label errors (#69)
+  label errors ([#69](https://github.com/jerome-white/leaderboard-item-response/issues/69))
 
 At the time of writing, none of these has produced a result yet.
