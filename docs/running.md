@@ -101,9 +101,9 @@ and sketched in a draft PR ([#65](https://github.com/jerome-white/leaderboard-it
 don't treat it as a supported path.
 
 **Chain initialization seems to matter a lot.** `stan-sample.sh` passes
-`init=<subject>/init.json`. In my runs, without it (CmdStan's default
+`init=<subject>/init.json`. In these runs, without it (CmdStan's default
 random-per-chain initialization) almost nothing converged on this model; see
-the [journal](journal.md). I'd keep `init=` unless you're testing exactly that.
+the [journal](journal.md). Keep `init=` unless you're testing exactly that.
 
 **Do not write into `data/opt/` or `data/hugging-face/`.** They gate very
 long-running processes (the Hugging Face download and full Stan sampling), so

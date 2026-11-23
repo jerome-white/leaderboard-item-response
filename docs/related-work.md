@@ -14,7 +14,7 @@ where a claim goes beyond the abstract it is posed as a question.
   from over 5,000 LLMs on six Open LLM Leaderboard benchmarks (ARC, GSM8K,
   HellaSwag, MMLU, TruthfulQA, WinoGrande) to select a sparse set of
   informative items, under 3% of the combined size, using IRT. The closest
-  data overlap with this project that I know of.
+  data overlap with this project among the papers listed here.
 - **tinyBenchmarks: evaluating LLMs with fewer examples** (Maia Polo et al.,
   6 authors; ICML 2024; [arXiv:2402.14992](https://arxiv.org/abs/2402.14992)).
   Shows that, for example, MMLU performance can be estimated from 100 curated
@@ -39,7 +39,7 @@ where a claim goes beyond the abstract it is posed as a question.
 - **py-irt** (Lalor and Rodriguez; [arXiv:2203.01282](https://arxiv.org/abs/2203.01282)).
   A Python IRT library built on PyTorch and Pyro, fitting models by
   variational inference. Its PyPI page points to an EACL 2024 tutorial on IRT
-  for NLP; I haven't seen the tutorial itself.
+  for NLP; the tutorial itself hasn't been looked at.
 - **Zhou et al., "Lost in Benchmarks? Rethinking Large Language Model
   Benchmarking with Item Response Theory"** (13 authors; AAAI 2026;
   [arXiv:2505.15055](https://arxiv.org/abs/2505.15055)). Proposes a
@@ -73,9 +73,9 @@ where a claim goes beyond the abstract it is posed as a question.
   do these papers already address it?
 - How does each fit its model (maximum likelihood, variational inference,
   MCMC)? Do any run several independently initialized chains and report R-hat
-  or effective sample size, the way this project found it needed to? I haven't
-  checked, so I can't say whether the initialization sensitivity described in
-  the [journal](journal.md) is known in this literature.
+  or effective sample size, the way this project found it needed to? That
+  hasn't been checked, so whether the initialization sensitivity described in
+  the [journal](journal.md) is known in this literature is unknown.
 - metabench uses the same family of leaderboard data (v1 benchmarks, over
   5,000 models) while this project uses the v2 leaderboard's MMLU-Pro. How
   do its item parameters compare on overlapping benchmarks?
@@ -105,7 +105,7 @@ model. Elo is commonly described as an online way of updating such strengths.
   ["Statistical Extensions of the Bradley-Terry and Elo Models"](https://arena.ai/blog/extended-arena/)
   extends the model with a feature vector per battle (for systems made of
   several subsystems). It also links to a separate post on style control,
-  which I haven't read, so I can't say how close it is.
+  which hasn't been read, so how close it is remains unknown.
 - For multiple-choice data like MMLU-Pro, would a guessing parameter (3PL,
   with a floor near 1/number of choices) fit better than 2PL?
 
@@ -119,12 +119,12 @@ For a static item bank with many models, like this repo's:
 - **Explanatory IRT**, where item parameters depend on item metadata (subject,
   format) rather than being free per item.
 - **Embedding-based or neural IRT.** JE-IRT above, and PSN-IRT in Zhou et al.
-  EmbedLLM was also suggested in my earlier notes; I couldn't verify it. If
+  EmbedLLM was also suggested in earlier notes but couldn't be verified. If
   item parameters can be predicted from the question text, could that help
   with the missing-data problem this project ran into? That's a question for
   the papers, not something I've confirmed.
 
 For a pairwise, Arena-style extension, a per-comparison discrimination term in
 Bradley-Terry is one possible direction. I haven't found an established model
-that does exactly this, but I haven't searched thoroughly, so whether it is
+that does exactly this, but the search wasn't thorough, so whether it is
 novel is an open question.
