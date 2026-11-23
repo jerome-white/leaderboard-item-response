@@ -125,6 +125,6 @@ For a static item bank with many models, like this repo's:
   the papers, not something I've confirmed.
 
 For a pairwise, Arena-style extension, a per-comparison discrimination term in
-Bradley-Terry is one possible direction. I haven't found an established model
-that does exactly this, but the search wasn't thorough, so whether it is
+Bradley-Terry is one possible direction. No established model that does
+exactly this has turned up, but the search wasn't thorough, so whether it is
 novel is an open question.
