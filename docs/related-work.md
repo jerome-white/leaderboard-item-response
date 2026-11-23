@@ -2,69 +2,129 @@
 
 Back to the [README](../README.md).
 
-## Papers that use IRT on LLM benchmarks
-Applying IRT to LLM benchmark results is a small but real subfield
-("NLP psychometrics"). The closest work I know of:
+Other papers that apply item response theory (IRT) to LLM or NLP evaluation.
+The descriptions below were checked against each paper's abstract page (or
+the venue's proceedings page). **The papers have not been read in full**, so
+where a claim goes beyond the abstract it is posed as a question.
 
-- **metabench** (Kipnis et al., ICLR 2025). IRT over thousands of models on the
-  Open LLM Leaderboard v1 suite, used to find a small, maximally informative
-  item subset. The closest sibling to this project.
-- **tinyBenchmarks** (Maia Polo et al., ICML 2024,
-  [arXiv:2402.14992](https://arxiv.org/abs/2402.14992)). IRT to compress MMLU,
-  HELM, AlpacaEval and Open LLM Leaderboard data to about 100 items per
-  benchmark while preserving rankings.
-- **Rodriguez et al., "Evaluation Examples Are Not Equally Informative"** (ACL
-  2021, [link](https://aclanthology.org/2021.acl-long.346/)). Bayesian IRT on
-  leaderboard data to flag annotation errors and rank items by
-  informativeness. Close to the question this repo keeps circling back to.
-- **Vania et al., "Comparing Test Sets with Item Response Theory"** (ACL 2021,
-  [link](https://aclanthology.org/2021.acl-long.92/)). IRT across 29 datasets
-  to measure benchmark saturation.
-- **John Lalor's work** on IRT for NLP, from
-  [2016](https://arxiv.org/abs/1605.08889) through a 2024 EACL tutorial. He
-  also maintains `py-irt` (variational inference).
-- **"Lost in Benchmarks? Rethinking LLM Benchmarking with Item Response
-  Theory"** ([arXiv:2505.15055](https://arxiv.org/abs/2505.15055)) and
-  **Land, "Auditing LLM Benchmarks with IRT"** (arXiv:2605.30504). Both use
-  IRT for benchmark quality forensics.
-- **MMLU-Redux** (Gema et al., NAACL 2025,
-  [link](https://aclanthology.org/2025.naacl-long.262/)). Manual
-  re-annotation of MMLU, finding substantial label errors. Not IRT, but a
-  human-labelled counterpart to what the item parameters here are meant to
-  surface (planned comparison: issue [#69](https://github.com/jerome-white/leaderboard-item-response/issues/69)).
+## Papers using IRT for LLM / NLP evaluation
 
-Where this project sits relative to those: most of that work *uses* IRT as a
-tool (to shrink benchmarks, or to audit them). This repo spends its effort on
-the fitting itself, asking whether full-Bayes 2PL on LLM data converges, why
-not, and whether the pathologies matter downstream. That is a narrower and
-less-explored angle.
+- **metabench** (Kipnis, Voudouris, Schulze Buschoff, Schulz; ICLR 2025;
+  [arXiv:2407.12844](https://arxiv.org/abs/2407.12844)). Uses item-level data
+  from over 5,000 LLMs on six Open LLM Leaderboard benchmarks (ARC, GSM8K,
+  HellaSwag, MMLU, TruthfulQA, WinoGrande) to select a sparse set of
+  informative items, under 3% of the combined size, using IRT. The closest
+  data overlap with this project that I know of.
+- **tinyBenchmarks: evaluating LLMs with fewer examples** (Maia Polo et al.,
+  6 authors; ICML 2024; [arXiv:2402.14992](https://arxiv.org/abs/2402.14992)).
+  Shows that, for example, MMLU performance can be estimated from 100 curated
+  examples, and releases tiny versions of the Open LLM Leaderboard, MMLU, HELM
+  and AlpacaEval 2.0. The abstract does not mention IRT; whether and how the
+  method uses it is something to confirm from the paper.
+- **Rodriguez et al., "Evaluation Examples are not Equally Informative: How
+  should that change NLP Leaderboards?"** (ACL-IJCNLP 2021;
+  [ACL Anthology](https://aclanthology.org/2021.acl-long.346/)). A Bayesian
+  leaderboard model in which latent subject skill and latent item difficulty
+  predict correct responses. The authors report it can guide what to annotate,
+  identify annotation errors, detect overfitting, and identify informative
+  examples.
+- **Vania et al., "Comparing Test Sets with Item Response Theory"**
+  (ACL-IJCNLP 2021; [ACL Anthology](https://aclanthology.org/2021.acl-long.92/)).
+  Uses IRT on 29 datasets with predictions from 18 pretrained Transformer
+  models, and concludes that many of the datasets are largely saturated.
+- **Lalor, Wu, Yu, "Building an Evaluation Scale using Item Response
+  Theory"** (EMNLP 2016; [arXiv:1605.08889](https://arxiv.org/abs/1605.08889)).
+  Proposes IRT as an alternative way to build gold-standard test sets and
+  evaluate NLP systems, demonstrated on Recognizing Textual Entailment.
+- **py-irt** (Lalor and Rodriguez; [arXiv:2203.01282](https://arxiv.org/abs/2203.01282)).
+  A Python IRT library built on PyTorch and Pyro, fitting models by
+  variational inference. Its PyPI page points to an EACL 2024 tutorial on IRT
+  for NLP; I haven't seen the tutorial itself.
+- **Zhou et al., "Lost in Benchmarks? Rethinking Large Language Model
+  Benchmarking with Item Response Theory"** (13 authors; AAAI 2026;
+  [arXiv:2505.15055](https://arxiv.org/abs/2505.15055)). Proposes a
+  neural IRT variant (PSN-IRT), analyzes 11 LLM benchmarks with 41,871 items,
+  and reports "significant and varied shortcomings" in their measurement
+  quality.
+- **Land and Bikel, "Auditing LLM Benchmarks with Item Response Theory"**
+  (EMNLP 2026; [arXiv:2605.30504](https://arxiv.org/abs/2605.30504)). An
+  IRT-based indicator for surfacing likely mislabeled benchmark items, with a
+  reported 95% precision in the top 200 examples, on seven benchmarks using
+  responses from 114 models.
+- **Yao et al., "JE-IRT: A Geometric Lens on LLM Abilities through Joint
+  Embedding Item Response Theory"** (TMLR;
+  [arXiv:2509.22888](https://arxiv.org/abs/2509.22888)). Embeds LLMs and
+  questions in a shared space, with question direction encoding semantics and
+  norm encoding difficulty; a new LLM is added by fitting a single embedding.
+- **MMLU-Redux** (Gema et al., "Are We Done with MMLU?", 16 authors; NAACL
+  2025; [ACL Anthology](https://aclanthology.org/2025.naacl-long.262/)).
+  Not IRT. Manually re-annotates 5,700 MMLU questions across all 57 subjects
+  and reports that 57% of the analysed questions in the Virology subset
+  contain errors. A human-labelled counterpart to what this project's item
+  parameters might surface (planned comparison: issue
+  [#69](https://github.com/jerome-white/leaderboard-item-response/issues/69)).
 
-Not yet checked: no one has been found doing the same multi-chain diagnostic
-workflow on LLM-evaluation IRT, but the literature check was shallow. See "Further notes" below for the longer notes (Elo vs. 2PL, MIRT and
-embedding-based IRT, and a possible "2PL for pairwise comparisons").
+## How this project relates, as open questions
+
+- Several of these papers use IRT to *do something with* the item parameters:
+  shrink a benchmark (metabench, tinyBenchmarks) or find bad items (Rodriguez,
+  Land and Bikel). This repo spends most of its effort on whether the
+  full-Bayes 2PL fit itself can be trusted. Is that actually less explored, or
+  do these papers already address it?
+- How does each fit its model (maximum likelihood, variational inference,
+  MCMC)? Do any run several independently initialized chains and report R-hat
+  or effective sample size, the way this project found it needed to? I haven't
+  checked, so I can't say whether the initialization sensitivity described in
+  the [journal](journal.md) is known in this literature.
+- metabench uses the same family of leaderboard data (v1 benchmarks, over
+  5,000 models) while this project uses the v2 leaderboard's MMLU-Pro. How
+  do its item parameters compare on overlapping benchmarks?
 
 ## Further notes
 
-From a 2026-07 research pass on where this project sits and where it could go.
+Earlier notes on where this might go, kept as questions and starting points,
+not conclusions.
 
-### Elo vs. 2PL
+### Elo, Bradley-Terry and 2PL
 
-It's tempting to think of Elo as "the maximum-likelihood version of 2PL." That's half right.
+Bradley-Terry, the paired-comparison model, has one strength parameter per
+player, which is the same structure as the one-parameter (Rasch, 1PL) IRT
+model. Elo is commonly described as an online way of updating such strengths.
+2PL adds a per-item discrimination `alpha` that neither has.
 
-Precisely: **Bradley-Terry** — the model most "Elo" systems are actually estimating — is the paired-comparison analog of the **Rasch model (1PL)**: one strength/ability parameter per player, no per-item discrimination. Classic sequential Elo is a noisy, order-dependent *online* approximation of the MLE for that Bradley-Terry model. Confirmed concretely: [Chiang et al.'s Chatbot Arena paper](https://arxiv.org/abs/2403.04132) explicitly moved Arena off online Elo onto a centralized regularized-logistic-regression fit of Bradley-Terry, precisely because online Elo's variance and order-dependence were a problem.
+- The Chatbot Arena paper ([Chiang et al.,
+  arXiv:2403.04132](https://arxiv.org/abs/2403.04132)) says earlier versions
+  of the platform reported Elo scores rather than Bradley-Terry coefficients,
+  and that they changed "because the BT coefficients are better for the
+  purpose of statistical estimation". Is the online-Elo variance and order
+  dependence the only reason, or the main one?
+- If `alpha` marks which items are worth trusting (low `alpha` for noisy,
+  guessable or mislabeled items), is it fair to say pairwise leaderboards
+  lack the equivalent? Does anyone model per-comparison discrimination in
+  Bradley-Terry? The Arena team's post
+  ["Statistical Extensions of the Bradley-Terry and Elo Models"](https://arena.ai/blog/extended-arena/)
+  extends the model with a feature vector per battle (for systems made of
+  several subsystems). It also links to a separate post on style control,
+  which I haven't read, so I can't say how close it is.
+- For multiple-choice data like MMLU-Pro, would a guessing parameter (3PL,
+  with a floor near 1/number of choices) fit better than 2PL?
 
-So: Elo ≈ approximate MLE of Bradley-Terry ≈ 1PL, not 2PL. The discrimination parameter α is what 2PL adds that neither Elo nor Arena's Bradley-Terry has, and it's not a minor add-on. α tells you which items are worth trusting: an item with high α cleanly separates strong from weak models near its difficulty; low α means the item is noisy, guessable, or mislabeled and shouldn't move the ranking much. That's exactly the lever metabench, tinyBenchmarks, and Land's auditing paper all use, and it's structurally absent from any pure Elo/Bradley-Terry leaderboard. For MCQ formats like MMLU-Pro specifically, 3PL (a guessing-floor asymptote near 1/n_choices) would likely add more than 2PL alone — Bradley-Terry has no equivalent concept at all.
+### Variants of 2PL to consider
 
-One nuance worth tracking: [Arena's newer "style-controlled" ranking](https://arena.ai/blog/extended-arena/) adds per-prompt covariates into the Bradley-Terry log-odds — a step toward explanatory-IRT territory, but nobody has shipped a clean, named "2PL-for-pairwise-comparisons" model. That's an actual gap, not an oversight (see §3).
+For a static item bank with many models, like this repo's:
 
-### Modern 2PL variants
+- **Multidimensional IRT.** "LLM ability" probably isn't one number: would a
+  vector `theta` fit better? Is it a higher-value change than the others
+  below? This is an untested guess.
+- **Explanatory IRT**, where item parameters depend on item metadata (subject,
+  format) rather than being free per item.
+- **Embedding-based or neural IRT.** JE-IRT above, and PSN-IRT in Zhou et al.
+  EmbedLLM was also suggested in my earlier notes; I couldn't verify it. If
+  item parameters can be predicted from the question text, could that help
+  with the missing-data problem this project ran into? That's a question for
+  the papers, not something I've confirmed.
 
-#### For this repo's data (static item bank, many models)
-
-- **Multidimensional IRT (MIRT)** — a vector θ instead of a scalar, since "LLM ability" clearly isn't one dimension (a model can be strong at math, weak at instruction-following). Probably the single highest-leverage upgrade to the current model.
-- **Explanatory/covariate IRT** — item parameters as a function of item metadata (subject, benchmark, format) rather than free per-item parameters.
-- **Embedding-based / neural IRT** — [JE-IRT](https://arxiv.org/abs/2509.22888), EmbedLLM, PSN-IRT: predict item difficulty/discrimination from the question's text embedding instead of requiring dense response coverage. Worth flagging specifically — this structurally sidesteps the missing-data problem this project ran into, rather than just tolerating it as missing-at-random.
-
-#### For a pairwise/Arena-style extension
-
-There's no established "2PL for paired comparisons" in the literature — which means building one (adding a per-prompt discrimination term to Bradley-Terry, so some battles count more toward the ranking than others) would be a genuinely novel contribution, not a rehash of Arena's own covariate approach. Given the discussion in §1 about whether this kind of work is worth pursuing, this is probably the more interesting and more original of the two paths available — live data, an actual modeling gap, and a natural extension of the 2PL machinery already built here.
+For a pairwise, Arena-style extension, a per-comparison discrimination term in
+Bradley-Terry is one possible direction. I haven't found an established model
+that does exactly this, but I haven't searched thoroughly, so whether it is
+novel is an open question.
